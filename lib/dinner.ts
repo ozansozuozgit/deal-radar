@@ -7,6 +7,34 @@ export interface DinnerIdea {
   estCost: number
 }
 
+/**
+ * LLM output is untrusted: fields go missing, numbers come back as strings, arrays as
+ * objects. Coerce into the exact shape the feed renders, dropping ideas without a title.
+ */
+export function sanitizeIdeas(raw: unknown): DinnerIdea[] {
+  if (!Array.isArray(raw)) return []
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+  const num = (v: unknown) => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v.replace(/[$,]/g, '')) : NaN
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : undefined
+  }
+  return raw.flatMap((r): DinnerIdea[] => {
+    if (!r || typeof r !== 'object') return []
+    const o = r as Record<string, unknown>
+    const title = str(o.title, 80)
+    if (!title) return []
+    const ingredients = (Array.isArray(o.ingredients) ? o.ingredients : []).flatMap(i => {
+      if (!i || typeof i !== 'object') return []
+      const g = i as Record<string, unknown>
+      const name = str(g.name, 60)
+      if (!name) return []
+      return [{ name, dealName: str(g.dealName, 120) || undefined, store: str(g.store, 60) || undefined, price: num(g.price) }]
+    })
+    const estCost = num(o.estCost) ?? Math.round(ingredients.reduce((t, i) => t + (i.price ?? 0), 0) * 100) / 100
+    return [{ title, emoji: str(o.emoji, 8) || '🍽️', description: str(o.description, 240), ingredients, estCost }]
+  }).slice(0, 3)
+}
+
 export async function generateDinnerIdeas(): Promise<void> {
   const key = process.env.GEMINI_API_KEY
   if (!key) { console.log('[dinner] no GEMINI_API_KEY — skipping'); return }
@@ -47,10 +75,11 @@ export async function generateDinnerIdeas(): Promise<void> {
   const data = await res.json()
   const text: string = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
   const jsonText = text.replace(/^```(?:json)?/m, '').replace(/```\s*$/m, '').trim()
-  let ideas: DinnerIdea[]
-  try { ideas = JSON.parse(jsonText) } catch { console.error('[dinner] non-JSON response'); return }
-  if (!Array.isArray(ideas) || ideas.length === 0) { console.error('[dinner] empty ideas'); return }
-  const { error } = await db.from('suggestions').insert({ payload: { ideas: ideas.slice(0, 3) } })
+  let parsed: unknown
+  try { parsed = JSON.parse(jsonText) } catch { console.error('[dinner] non-JSON response'); return }
+  const ideas = sanitizeIdeas(parsed)
+  if (ideas.length === 0) { console.error('[dinner] empty ideas'); return }
+  const { error } = await db.from('suggestions').insert({ payload: { ideas } })
   if (error) console.error('[dinner] insert failed:', error.message)
-  else console.log(`[dinner] stored ${Math.min(ideas.length, 3)} ideas`)
+  else console.log(`[dinner] stored ${ideas.length} ideas`)
 }

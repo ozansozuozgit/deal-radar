@@ -20,6 +20,8 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
   const [highlight, setHighlight] = useState(0)
   const picked = useRef<Suggestion | null>(initial ? { label: initial.address, lat: initial.lat, lng: initial.lng, zip: initial.zip } : null)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestQuery = useRef('')
+  const suggestionsFor = useRef('') // the text the current dropdown results were fetched for
 
   useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current) }, [])
 
@@ -29,10 +31,13 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
     setError(null)
     if (debounce.current) clearTimeout(debounce.current)
     if (value.trim().length < 3) { setSuggestions([]); setOpen(false); return }
+    latestQuery.current = value
     debounce.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(value)}`)
         const { suggestions } = await res.json()
+        if (latestQuery.current !== value) return // a newer keystroke's results own the dropdown
+        suggestionsFor.current = value
         setSuggestions(suggestions ?? [])
         setOpen((suggestions ?? []).length > 0)
         setHighlight(0)
@@ -53,12 +58,17 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
     navigator.geolocation.getCurrentPosition(async pos => {
       try {
         const { latitude: lat, longitude: lng } = pos.coords
-        const res = await fetch(`/api/suggest?mode=reverse&lat=${lat}&lng=${lng}`)
-        const { suggestions } = await res.json()
-        const s: Suggestion = suggestions?.[0] ?? { label: 'My location', lat, lng, zip: null }
+        // naming the spot is best-effort: the coordinates alone are enough to continue
+        const d = await fetch(`/api/suggest?mode=reverse&lat=${lat}&lng=${lng}`).then(r => r.json()).catch(() => null)
+        const s: Suggestion = d?.suggestions?.[0] ?? { label: 'My location', lat, lng, zip: null }
         choose({ ...s, lat, lng })
       } finally { setBusy(false) }
-    }, () => { setBusy(false); setError('Could not get your location — type your address instead') },
+    }, err => {
+      setBusy(false)
+      setError(err.code === err.PERMISSION_DENIED
+        ? 'Location permission is off for this site — type your address instead'
+        : 'Could not get your location — type your address instead')
+    },
     { enableHighAccuracy: false, timeout: 10_000 })
   }
 
@@ -68,9 +78,15 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
       let s = picked.current
       if (!s) {
         const res = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`)
-        if (!res.ok) throw new Error((await res.json()).error ?? 'Could not find that address')
-        const { lat, lng, zip } = await res.json()
-        s = { label: address, lat, lng, zip }
+          .catch(() => { throw new Error(navigator.onLine ? 'Could not reach the address lookup — try again' : 'You’re offline — connect and try again') })
+        const body = await res.json().catch(() => ({}))
+        if (res.ok && Number.isFinite(body.lat) && Number.isFinite(body.lng)) {
+          s = { label: address, lat: body.lat, lng: body.lng, zip: body.zip ?? null }
+        } else if (suggestions[0] && suggestionsFor.current === address) {
+          s = suggestions[0] // results for exactly this text found something close; better than failing
+        } else {
+          throw new Error(res.status === 404 ? 'Couldn’t find that address — try adding the city and state, or pick a suggestion' : 'Address lookup is having trouble — try again or use your location')
+        }
       }
       const saved = loadPrefs()
       const prefs: Prefs = {

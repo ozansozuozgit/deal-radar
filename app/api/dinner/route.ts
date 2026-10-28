@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/db'
+import { sanitizeIdeas } from '@/lib/dinner'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,5 +16,5 @@ export async function GET() {
   if (!row || Date.now() - +new Date(row.created_at) > 8 * 86_400_000) {
     return NextResponse.json({ ideas: [] }, { headers: CACHE })
   }
-  return NextResponse.json({ ideas: (row.payload as { ideas?: unknown[] })?.ideas ?? [], created_at: row.created_at }, { headers: CACHE })
+  return NextResponse.json({ ideas: sanitizeIdeas((row.payload as { ideas?: unknown })?.ideas), created_at: row.created_at }, { headers: CACHE })
 }

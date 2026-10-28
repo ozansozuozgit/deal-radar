@@ -25,12 +25,11 @@ export async function GET(req: NextRequest) {
     if (!q || q.length < 3) return NextResponse.json({ suggestions: [] })
     url = `https://photon.komoot.io/api?q=${encodeURIComponent(q)}&limit=6&lat=${BIAS.lat}&lon=${BIAS.lon}`
   }
-  const res = await fetch(url, {
+  // suggestions are best-effort: an upstream hiccup just means an empty dropdown
+  const data = await fetch(url, {
     headers: { 'User-Agent': 'deal-radar/1.0 (personal project)' },
     signal: AbortSignal.timeout(10_000),
-  })
-  if (!res.ok) return NextResponse.json({ suggestions: [] })
-  const data = await res.json()
+  }).then(r => (r.ok ? r.json() : null)).catch(() => null)
   const suggestions = ((data?.features ?? []) as PhotonFeature[])
     .filter(f => f.properties.countrycode === 'US')
     .map(f => {

@@ -31,7 +31,8 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
   actually on sale, with ingredient→deal chips and estimated cost (optional, Gemini free tier)
 - 📈 **Price history sparklines**, deal detail sheets with links to the source flyer,
   expandable images (Fairway zooms to the full flyer page in context)
-- 📲 **Installable PWA**, mobile-first, dark UI
+- 📲 **Installable PWA that works offline** — the app and the last deals you loaded open in-store
+  with no signal; mobile-first, dark UI
 
 | Landing | Deal detail | List comparison |
 |---|---|---|
@@ -56,8 +57,10 @@ flowchart LR
 - **No paid scraping services.** The sources are the same JSON feeds the stores' own flyer
   widgets use, discovered by watching network traffic. Adapters are pluggable
   (`lib/sources/*` implement one small `DealSource` interface).
-- **Data survives flakiness**: per-source error isolation, Overpass mirror fallback,
-  extraction-price preservation across rate limits, idempotent upserts.
+- **Data survives flakiness**: per-source *and* per-flyer error isolation, Overpass mirror
+  fallback, extraction-price preservation across rate limits, deduped and batched idempotent
+  upserts, and a keepalive so GitHub doesn't disable the daily schedule after 60 quiet days.
+  The app warns when data is more than 36h old.
 - **History is free**: deals upsert daily with validity windows, so price history, "lowest in
   N weeks" badges, and sparklines simply emerge over time.
 

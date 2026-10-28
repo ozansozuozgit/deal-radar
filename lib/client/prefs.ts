@@ -1,12 +1,29 @@
+import { readJson, writeJson } from './storage'
+
 export interface Prefs {
   address: string; lat: number; lng: number; zip: string
   radiusMiles: number; enabledStores: string[] | null  // null = all
 }
 
-const KEY = 'deal-radar-prefs-v1'
+export const PREFS_KEY = 'deal-radar-prefs-v1'
 
-export function loadPrefs(): Prefs | null {
-  if (typeof window === 'undefined') return null
-  try { return JSON.parse(localStorage.getItem(KEY) ?? 'null') } catch { return null }
+/** Validate whatever is stored; anything malformed means "not set up yet" rather than a crash. */
+export function parsePrefs(raw: unknown): Prefs | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const lat = num(p.lat), lng = num(p.lng)
+  if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  const radius = num(p.radiusMiles)
+  return {
+    address: typeof p.address === 'string' && p.address.trim() ? p.address : 'My location',
+    lat, lng,
+    zip: typeof p.zip === 'string' ? p.zip : '',
+    radiusMiles: radius != null && radius > 0 && radius <= 50 ? radius : 1.5,
+    enabledStores: Array.isArray(p.enabledStores) && p.enabledStores.length
+      && p.enabledStores.every(s => typeof s === 'string') ? p.enabledStores as string[] : null,
+  }
 }
-export function savePrefs(p: Prefs): void { localStorage.setItem(KEY, JSON.stringify(p)) }
+
+export function loadPrefs(): Prefs | null { return parsePrefs(readJson<unknown>(PREFS_KEY, null)) }
+export function savePrefs(p: Prefs): void { writeJson(PREFS_KEY, p) }

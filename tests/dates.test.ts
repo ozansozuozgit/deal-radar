@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { daysLeft, timeAgo } from '@/lib/dates'
+import { daysLeft, hoursSince, timeAgo } from '@/lib/dates'
 
 const now = Date.parse('2026-10-28T12:00:00Z')
 
@@ -25,4 +25,9 @@ test('timeAgo buckets', () => {
   expect(timeAgo('2026-10-26T12:00:00Z', now)).toBe('2d ago')
   expect(timeAgo('2026-10-28T13:00:00Z', now)).toBe('just now') // clock skew
   expect(timeAgo(null, now)).toBeNull()
+})
+
+test('hoursSince', () => {
+  expect(hoursSince('2026-10-27T00:00:00Z', now)).toBe(36)
+  expect(hoursSince(null, now)).toBeNull()
 })

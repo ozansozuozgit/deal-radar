@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { dealRow, flyerRow } from '@/lib/ingest/upsert'
+import { chunk, dealRow, dedupeBy, flyerRow } from '@/lib/ingest/upsert'
 import type { DealInput, FlyerInput } from '@/lib/types'
 
 const flyer: FlyerInput = {
@@ -31,4 +31,14 @@ test('dealRow maps, computes normalized_name, keeps crop json', () => {
   })
   expect(row.crop).toEqual(deal.crop)
   expect(row.price ?? null).toBeNull()
+})
+
+test('dedupeBy keeps the last row per key', () => {
+  expect(dedupeBy([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'a', v: 3 }], r => r.id))
+    .toEqual([{ id: 'a', v: 3 }, { id: 'b', v: 2 }])
+})
+
+test('chunk splits into fixed-size batches', () => {
+  expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
+  expect(chunk([], 2)).toEqual([])
 })

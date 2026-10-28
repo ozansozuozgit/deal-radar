@@ -1,22 +1,29 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { addListItem, loadList, removeListItem, type ListItem } from '@/lib/client/list'
+import { addListItem, loadList, removeListItem, saveList, type ListItem } from '@/lib/client/list'
 import { compareList, type CompareDeal } from '@/lib/compare'
+import { readJson, readString, writeJson, writeString } from '@/lib/client/storage'
 
 const CODE_KEY = 'deal-radar-listcode-v1'
+// last priced matches, so the list still shows prices in a store with no signal
+const COMPARE_CACHE_KEY = 'deal-radar-compare-v1'
+// codes come from /api/list (6 chars); anything else is a mangled link or old junk
+const isCode = (c: string | null | undefined): c is string => !!c && /^[A-Z0-9]{6}$/.test(c)
 
 // URL join code (?list=XXXXXX) > stored code. A join code is remembered and stripped
 // from the URL so a reload doesn't re-join. Idempotent, so safe as a state initializer.
 function initialCode(): string | null {
   if (typeof window === 'undefined') return null
   const url = new URL(window.location.href)
-  const joinCode = url.searchParams.get('list')?.toUpperCase() ?? null
-  if (joinCode) {
-    localStorage.setItem(CODE_KEY, joinCode)
+  const param = url.searchParams.get('list')
+  const joinCode = param?.trim().toUpperCase() ?? null
+  if (param != null) {
+    if (isCode(joinCode)) writeString(CODE_KEY, joinCode)
     url.searchParams.delete('list')
     window.history.replaceState({}, '', url.toString())
   }
-  return joinCode ?? localStorage.getItem(CODE_KEY)
+  const stored = readString(CODE_KEY)
+  return isCode(joinCode) ? joinCode : isCode(stored) ? stored : null
 }
 
 export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
@@ -24,8 +31,11 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
   const [code, setCode] = useState<string | null>(initialCode)
   const [items, setItems] = useState<ListItem[]>(() => (code ? [] : loadList()))
   const [draft, setDraft] = useState('')
-  const [deals, setDeals] = useState<CompareDeal[] | null>(null)
-  const [shareState, setShareState] = useState<'idle' | 'busy' | 'copied'>('idle')
+  const [deals, setDeals] = useState<CompareDeal[] | null>(() => {
+    const cached = readJson<unknown>(COMPARE_CACHE_KEY, null)
+    return Array.isArray(cached) ? cached as CompareDeal[] : null
+  })
+  const [shareState, setShareState] = useState<'idle' | 'busy' | 'copied' | 'error'>('idle')
 
   const refetchShared = useCallback((c: string) =>
     fetch(`/api/list?code=${encodeURIComponent(c)}`)
@@ -54,8 +64,13 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
         body: JSON.stringify({ items: texts, stores: storeSlugs }),
       }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then(d => setDeals((d.deals ?? []) as CompareDeal[]))
-        .catch(() => { if (!ctrl.signal.aborted) setDeals([]) }), 200)
+        .then(d => {
+          const fresh = (Array.isArray(d.deals) ? d.deals : []) as CompareDeal[]
+          setDeals(fresh)
+          writeJson(COMPARE_CACHE_KEY, fresh)
+        })
+        // offline or server trouble: keep the last prices rather than claiming "no deal"
+        .catch(() => { if (!ctrl.signal.aborted) setDeals(cur => cur ?? []) }), 200)
     return () => { clearTimeout(t); ctrl.abort() }
   }, [itemsKey, storeSlugs])
 
@@ -63,14 +78,23 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
     () => (deals && items.length ? compareList(items.map(i => i.text), deals) : null),
     [deals, items])
 
+  const [syncError, setSyncError] = useState(false)
+  async function sync(method: 'POST' | 'DELETE', text: string): Promise<boolean> {
+    const ok = await fetch('/api/list', {
+      method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, text }),
+    }).then(r => r.ok, () => false)
+    setSyncError(!ok)
+    return ok
+  }
+
   async function add() {
     const text = draft.trim()
     if (!text) return
     setDraft('')
     if (code) {
       setItems(cur => cur.some(i => i.text.toLowerCase() === text.toLowerCase()) ? cur : [...cur, { text }])
-      await fetch('/api/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, text }) })
-      refetchShared(code)
+      // on failure keep the optimistic item visible; a refetch would silently drop it
+      if (await sync('POST', text)) refetchShared(code)
     } else {
       setItems(addListItem(text))
     }
@@ -79,7 +103,7 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
   async function remove(text: string) {
     if (code) {
       setItems(cur => cur.filter(i => i.text !== text))
-      await fetch('/api/list', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, text }) })
+      if (!(await sync('DELETE', text))) refetchShared(code)
     } else {
       setItems(removeListItem(text))
     }
@@ -93,12 +117,20 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
         body: JSON.stringify({ texts: items.map(i => i.text) }),
       })
       const { code: newCode } = await res.json()
-      localStorage.setItem(CODE_KEY, newCode)
+      if (!res.ok || !isCode(newCode)) throw new Error('share failed')
+      writeString(CODE_KEY, newCode)
       setCode(newCode)
       await navigator.clipboard.writeText(`${window.location.origin}/?list=${newCode}`).catch(() => {})
       setShareState('copied')
       setTimeout(() => setShareState('idle'), 3000)
-    } catch { setShareState('idle') }
+    } catch { setShareState('error'); setTimeout(() => setShareState('idle'), 3000) }
+  }
+
+  // stop syncing: keep the current items as a local list on this device
+  function leaveShared() {
+    saveList(items)
+    writeString(CODE_KEY, null)
+    setCode(null)
   }
 
   async function copyLink() {
@@ -126,14 +158,19 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
             <button onClick={copyLink} className="rounded-lg border border-neutral-700 px-2.5 py-1 text-neutral-300 hover:bg-neutral-800">
               {shareState === 'copied' ? '✓ Link copied' : '🔗 Copy link'}
             </button>
+            <button onClick={leaveShared} className="text-neutral-500 hover:text-neutral-300 underline-offset-2 hover:underline">Stop sharing</button>
           </>
         ) : items.length > 0 && (
           <button onClick={share} disabled={shareState === 'busy'}
             className="rounded-lg border border-neutral-700 px-2.5 py-1 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50">
-            {shareState === 'busy' ? 'Creating…' : shareState === 'copied' ? '✓ Link copied' : '🔗 Share this list'}
+            {shareState === 'busy' ? 'Creating…' : shareState === 'copied' ? '✓ Link copied' : shareState === 'error' ? '⚠️ Could not share — try again' : '🔗 Share this list'}
           </button>
         )}
       </div>
+
+      {code && syncError && (
+        <div className="text-xs text-amber-400" role="status">⚠️ Couldn&apos;t sync with the shared list — check your connection. Changes may not reach other devices.</div>
+      )}
 
       {items.length === 0 ? (
         <div className="text-center text-neutral-500 mt-16">
