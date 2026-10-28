@@ -3,6 +3,9 @@ import { getServiceClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// data changes once a day; let the CDN absorb repeat reads
+const CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' }
+
 export async function GET() {
   const db = getServiceClient()
   const now = new Date().toISOString()
@@ -27,5 +30,5 @@ export async function GET() {
       .filter(s => s.deal_count > 0)
       .sort((a, b) => (a.distance_miles ?? 99) - (b.distance_miles ?? 99)),
     freshness: [...latestBySource.values()],
-  })
+  }, { headers: CACHE })
 }

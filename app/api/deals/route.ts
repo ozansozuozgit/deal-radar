@@ -4,6 +4,9 @@ import { parseDealsParams } from '@/lib/api/dealsQuery'
 
 export const dynamic = 'force-dynamic'
 
+// data changes once a day; let the CDN absorb repeat reads
+const CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' }
+
 export async function GET(req: NextRequest) {
   const p = parseDealsParams(req.nextUrl.searchParams)
   const db = getServiceClient()
@@ -32,5 +35,5 @@ export async function GET(req: NextRequest) {
       flyers: undefined,
     }
   })
-  return NextResponse.json({ deals })
+  return NextResponse.json({ deals }, { headers: CACHE })
 }

@@ -74,7 +74,9 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
       }
       const prefs: Prefs = {
         address: s.label, lat: s.lat, lng: s.lng,
-        zip: s.zip ?? '10001', radiusMiles: radius, enabledStores: null,
+        zip: s.zip ?? '10001', radiusMiles: radius,
+        // keep store picks unless the location itself changed
+        enabledStores: initial && initial.lat === s.lat && initial.lng === s.lng ? initial.enabledStores : null,
       }
       savePrefs(prefs); onDone(prefs)
     } catch (e) { setError(e instanceof Error ? e.message : 'Something went wrong') }
