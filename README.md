@@ -37,8 +37,20 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
 - 👀 **Watches + push notifications** — watch "chicken breast", optionally "under $2.50/lb",
   and your phone buzzes the morning it hits that price; tapping opens that exact deal
   (Web Push, works as an installed PWA on iOS)
-- 🍳 **Dinner ideas from this week's deals** — three weeknight recipes generated from what's
-  actually on sale, with ingredient→deal chips and estimated cost (optional, Gemini free tier)
+- 🍳 **Meal planner** — plan 3–7 dinners around this week's deals with your preferences
+  ("high protein, no pork"), swap any one, and add every ingredient to the list with the
+  right deal already pinned (optional, Gemini free tier)
+- ✨ **For you** — a row of deals on things you list, watch and keep buying, plus genuinely
+  great prices in your usual categories; "Not interested" hides a product everywhere
+- 💎 **Price check** — every product gets a typical sale price across all nearby stores, so
+  deals are labelled great (stock up), normal or weak (wait), with how often it goes on sale
+- 🧠 **Smart matching** — "hamburger meat" finds Ground Chuck and chicken-breast dog treats
+  don't count as chicken breast: deals map to canonical products (a curated dictionary,
+  plus Gemini for the long tail, cached so each name is classified once)
+- 🗞️ **Weekly digest** — one push when the new flyers land: deals for you, what your list
+  costs and where, and the best price of the week
+- 📍 **Saved places** — home, work, family: switch with one tap; every saved place is
+  included in the morning scan
 - 📈 **Price history sparklines**, deal detail sheets with links to the source flyer,
   expandable images (Fairway zooms to the full flyer page in context)
 - 📲 **Installable PWA**, mobile-first, dark UI
@@ -57,7 +69,7 @@ flowchart LR
     R[Fairway<br/>RedPepper API] --> N
     G[Gemini<br/>flyer price extraction] -.optional.-> N
     N --> DB[(Supabase<br/>Postgres)]
-    DB --> H[history flags<br/>+ push alerts<br/>+ dinner ideas]
+    DB --> H[canonical products<br/>+ price stats & verdicts<br/>+ history flags<br/>+ push alerts & digest<br/>+ dinner ideas]
   end
   DB --> APP[Next.js app<br/>Vercel]
   APP --> U[📱 you]
@@ -93,7 +105,8 @@ To find your Whole Foods store id: `npx tsx scripts/wf-find-store.ts <store-page
 1. **Vercel**: import the repo, add `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env vars.
 2. **GitHub Actions**: add the same as repo secrets plus your `INGEST_*` location values —
    the [ingest workflow](.github/workflows/ingest.yml) runs daily at 6am ET.
-3. Optional extras (all free): `GEMINI_API_KEY` (Fairway prices + dinner ideas), VAPID keys
+3. Optional extras (all free): `GEMINI_API_KEY` (Fairway prices, product matching and dinner
+   ideas in GitHub Actions; add it to Vercel too for the in-app meal planner), VAPID keys
    (`npx web-push generate-vapid-keys`) for push alerts, a fine-grained GitHub PAT for the
    in-app "Refresh now" button. See [.env.example](.env.example).
 

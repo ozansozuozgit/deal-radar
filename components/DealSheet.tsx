@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { isHistoricalLow, type DealRecord } from './DealCard'
 import { FlyerCrop } from './FlyerCrop'
 import { daysLeft as daysUntil } from '@/lib/dates'
+import { cycleText, verdictText, type PriceStats } from '@/lib/priceCheck'
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
 
@@ -20,17 +21,20 @@ function itemLink(deal: DealRecord): { href: string; label: string } | null {
   }
 }
 
-export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
+export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
   deal: DealRecord
   onClose: () => void
   onWatch: (term: string) => void
   onAddToList: (deal: DealRecord) => void
+  onHide?: (term: string) => void
 }) {
   const name = (deal as unknown as { normalized_name?: string }).normalized_name
   const [fetched, setFetched] = useState<HistoryPoint[] | null>(null)
   const points = name ? fetched : []
   const [done, setDone] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState(false)
+  const [stats, setStats] = useState<PriceStats | null>(null)
+  const [hiding, setHiding] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
   // modal hygiene: freeze the page behind, move focus in, hand it back on close
@@ -51,6 +55,14 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
       .catch(() => { if (!ctrl.signal.aborted) setFetched([]) })
     return () => ctrl.abort()
   }, [name, deal.merchant_slug])
+
+  useEffect(() => {
+    if (!deal.canonical) return
+    const ctrl = new AbortController()
+    fetch(`/api/stats?c=${encodeURIComponent(deal.canonical)}`, { signal: ctrl.signal })
+      .then(r => (r.ok ? r.json() : null)).then(d => setStats(d?.stats?.[0] ?? null)).catch(() => {})
+    return () => ctrl.abort()
+  }, [deal.canonical])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -128,6 +140,14 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
           </div>
         </div>
 
+        {(verdictText(deal.price_verdict, deal.cmp_price, stats) || cycleText(stats)) && (
+          <div className="mt-6 rounded-xl bg-neutral-800/50 p-3.5">
+            <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-1.5">Price check{deal.canonical ? ` · ${deal.canonical}` : ''}</h3>
+            {verdictText(deal.price_verdict, deal.cmp_price, stats) && <p className="text-sm">{verdictText(deal.price_verdict, deal.cmp_price, stats)}</p>}
+            {cycleText(stats) && <p className="text-xs text-neutral-400 mt-1">{cycleText(stats)} (from {stats!.samples} weekly prices at {stats!.stores} store{stats!.stores === 1 ? '' : 's'}).</p>}
+          </div>
+        )}
+
         <div className="mt-6">
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Price history</h3>
           {points === null ? <div className="h-14 rounded bg-neutral-800 animate-pulse" />
@@ -145,6 +165,23 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
             {done === 'list' ? '✓ On your list' : '🛒 Add to list'}
           </button>
         </div>
+        {onHide && (
+          <div className="mt-3 text-center">
+            {done === 'hide' ? <span className="text-xs text-neutral-500">Hidden from your feed. Undo under “hidden” next to the deal count.</span>
+              : !hiding ? (
+                <button onClick={() => setHiding(true)} className="text-xs text-neutral-500 hover:text-neutral-300">🙈 Not interested…</button>
+              ) : (
+                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                  <span className="text-neutral-500">Hide</span>
+                  {[...new Set([deal.canonical, name].filter((t): t is string => !!t))].map(t => (
+                    <button key={t} onClick={() => { onHide(t); setDone('hide') }}
+                      className="rounded-full border border-neutral-700 px-2.5 py-1 hover:bg-neutral-800">all “{t}”</button>
+                  ))}
+                  <button onClick={() => setHiding(false)} className="text-neutral-500 hover:text-white px-1">cancel</button>
+                </div>
+              )}
+          </div>
+        )}
       </div>
 
       {zoomed && (

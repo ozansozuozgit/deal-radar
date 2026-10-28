@@ -37,3 +37,12 @@ export function parseDealsParams(sp: URLSearchParams): DealsParams {
     ids: ids?.length ? ids : null,
   }
 }
+
+/**
+ * The search filter: the term anywhere in the name or canonical product, plus an exact
+ * canonical match for synonyms ("hamburger meat" also finds deals filed as "ground beef").
+ */
+export function searchFilter(term: string, canonical: string | null): string {
+  const base = ilikeAny(['name', 'normalized_name', 'canonical'], term)
+  return canonical ? `${base},canonical.eq.${JSON.stringify(canonical)}` : base
+}

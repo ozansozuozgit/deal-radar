@@ -87,7 +87,7 @@ export async function sendWatchAlerts(): Promise<void> {
 
   const now = new Date().toISOString()
   const deals = await fetchAll<Record<string, unknown>>((from, to) => db.from('deals')
-    .select('id, name, normalized_name, merchant_slug, price, unit, size_qty, size_unit, source, external_id')
+    .select('id, name, normalized_name, canonical, merchant_slug, price, unit, size_qty, size_unit, source, external_id')
     .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
     .order('id').range(from, to))
   // merchant display names

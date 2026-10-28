@@ -1,5 +1,6 @@
 // Shopping-list comparison over active deals. Pure functions, unit-tested.
 import { toOz, type QtyUnit } from '@/lib/quantity'
+import { canonicalize } from '@/lib/parse/canonical'
 
 export interface CompareDeal {
   id?: number
@@ -10,6 +11,7 @@ export interface CompareDeal {
   unit?: string | null                // 'lb' when the price is per pound
   size_qty?: number | null; size_unit?: string | null
   category?: string | null
+  canonical?: string | null           // generic product, e.g. "chicken breast"
 }
 
 /** A list entry as the comparison sees it. A bare string means 1 of it. */
@@ -58,17 +60,34 @@ export function tokens(s: string): string[] {
     .filter(t => t.length > 1 && !STOP.has(t))
 }
 
-/** Deals whose name contains every meaningful token of the item, cheapest first. */
+/**
+ * Deals that are the item, cheapest first. A deal matches when it's the same canonical
+ * product ("hamburger meat" finds "Ground Chuck"), or when its name contains every
+ * meaningful token of the item, unless it's known to be a different product that
+ * merely mentions those words ("chicken breast" vs chicken-breast dog treats).
+ */
 export function matchesForItem<T extends CompareDeal>(itemText: string, deals: T[]): T[] {
-  const want = tokens(itemText)
-  if (want.length === 0) return []
+  const m = itemMatcher(itemText)
   return deals
-    .filter(d => d.price != null)
-    .filter(d => {
-      const have = new Set(tokens(d.normalized_name || d.name))
-      return want.every(t => have.has(t))
-    })
+    .filter(d => d.price != null && m(d))
     .sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9))
+}
+
+export interface MatchTarget { name: string; normalized_name?: string | null; canonical?: string | null }
+
+/** A predicate for "this deal is that item", built once per item (see matchesForItem). */
+export function itemMatcher(itemText: string): (d: MatchTarget) => boolean {
+  const want = tokens(itemText)
+  if (want.length === 0) return () => false
+  const canon = canonicalize(itemText)
+  return d => {
+    if (canon && d.canonical === canon) return true
+    const canonTokens = d.canonical ? new Set(tokens(d.canonical)) : null
+    if (canonTokens && want.every(t => canonTokens.has(t))) return true
+    const have = new Set(tokens(d.normalized_name || d.name))
+    if (!want.every(t => have.has(t))) return false
+    return !(canon && d.canonical && d.canonical !== canon)
+  }
 }
 
 /**

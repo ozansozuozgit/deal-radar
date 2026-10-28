@@ -5,6 +5,8 @@ import { assignItems, compareList, type CompareDeal, type CompareItem, type Deal
 import { formatQty, parseItem, qtyStep } from '@/lib/quantity'
 import { tripOptions, type LatLng } from '@/lib/trip'
 import { MatchPicker } from './MatchPicker'
+import { canonicalize } from '@/lib/parse/canonical'
+import { cycleText, type PriceStats } from '@/lib/priceCheck'
 import { TripMap, type MapStore } from './TripMap'
 
 export interface StoreInfo { slug: string; name: string; lat?: number | null; lng?: number | null }
@@ -30,6 +32,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
   const [items, setItems] = useState<ListItem[]>(() => (code ? [] : loadList()))
   const [draft, setDraft] = useState('')
   const [deals, setDeals] = useState<CompareDeal[] | null>(null)
+  const [stats, setStats] = useState<Map<string, PriceStats>>(new Map())
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const [mode, setMode] = useState<'plan' | 'shop'>('plan')
   const [planKey, setPlanKey] = useState<string | null>(null) // null = recommended
@@ -70,7 +73,10 @@ export function ListView({ code, storeSlugs, stores, home }: {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
         body: JSON.stringify({ items: body, stores: storeSlugs }),
       }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then(d => setDeals((d.deals ?? []) as CompareDeal[]))
+        .then(d => {
+          setDeals((d.deals ?? []) as CompareDeal[])
+          setStats(new Map(((d.stats ?? []) as PriceStats[]).map(st => [st.canonical, st])))
+        })
         .catch(() => { if (!ctrl.signal.aborted) setDeals([]) }), 200)
     return () => { clearTimeout(t); ctrl.abort() }
   }, [fetchKey, storeSlugs])
@@ -296,6 +302,11 @@ export function ListView({ code, storeSlugs, stores, home }: {
                     ) : deals ? (
                       <div className="text-xs text-neutral-500 mt-0.5">
                         no deal {plan?.slugs ? 'at this plan’s stores' : 'this week'}
+                        {!r?.matches.length && (() => {
+                          const c = canonicalize(it.text)
+                          const t = c ? cycleText(stats.get(c) ?? null) : null
+                          return t ? <span className="text-neutral-400"> · {t.charAt(0).toLowerCase() + t.slice(1)}</span> : null
+                        })()}
                         {r && r.matches.length > 0 && <button onClick={() => setPicking(it.text)} className="text-sky-400 ml-1">· see {r.matches.length} elsewhere</button>}
                         {r && r.matches.length === 0 && (it.rejectedDealIds?.length ?? 0) > 0 &&
                           <button onClick={() => change(it.text, { rejectedDealIds: [] })} className="text-sky-400 ml-1">· undo hidden matches</button>}

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { loadPrefs, savePrefs, type Prefs } from '@/lib/client/prefs'
+import { storedCode } from '@/lib/client/sync'
 
 interface Suggestion { label: string; lat: number; lng: number; zip: string | null }
 
@@ -10,15 +11,31 @@ const FEATURES: Array<[string, string, string]> = [
   ['🧾', 'Your list, priced out', 'Add your groceries and see which store — or two-store split — is cheapest this week.'],
 ]
 
-export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: (p: Prefs) => void }) {
-  const [address, setAddress] = useState(initial?.address ?? '')
+/** Save a place to the synced list so the daily scan covers it (best-effort). */
+export function savePlace(p: Prefs): Promise<unknown> {
+  const code = storedCode()
+  if (!code || !p.label) return Promise.resolve()
+  return fetch('/api/places', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, label: p.label, address: p.address, lat: p.lat, lng: p.lng, zip: p.zip, radius: p.radiusMiles }),
+  }).catch(() => {})
+}
+
+export function SetupCard({ initial, onDone, onCancel, adding = false }: {
+  initial: Prefs | null
+  onDone: (p: Prefs) => void
+  onCancel?: () => void
+  adding?: boolean          // a new saved place, rather than editing the current one
+}) {
+  const [address, setAddress] = useState(adding ? '' : initial?.address ?? '')
+  const [label, setLabel] = useState(adding ? '' : initial?.label ?? 'Home')
   const [radius, setRadius] = useState(initial?.radiusMiles ?? 1.5)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
-  const picked = useRef<Suggestion | null>(initial ? { label: initial.address, lat: initial.lat, lng: initial.lng, zip: initial.zip } : null)
+  const picked = useRef<Suggestion | null>(initial && !adding ? { label: initial.address, lat: initial.lat, lng: initial.lng, zip: initial.zip } : null)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current) }, [])
@@ -76,11 +93,14 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
       const prefs: Prefs = {
         address: s.label, lat: s.lat, lng: s.lng,
         zip: s.zip ?? '10001', radiusMiles: radius,
+        label: label.trim() || 'Home',
         // keep store picks unless the location itself changed; read them fresh, since
         // the feed saves chip changes to storage without updating `initial`
         enabledStores: saved && saved.lat === s.lat && saved.lng === s.lng ? saved.enabledStores : null,
       }
-      savePrefs(prefs); onDone(prefs)
+      savePrefs(prefs)
+      await savePlace(prefs)
+      onDone(prefs)
     } catch (e) { setError(e instanceof Error ? e.message : 'Something went wrong') }
     finally { setBusy(false) }
   }
@@ -160,6 +180,11 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
             📡 Use my current location
           </button>
           <label className="text-sm text-neutral-300">
+            <span>Name this place</span>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Home, Work, Mom’s…" maxLength={40}
+              className="mt-1.5 w-full rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600 placeholder:text-neutral-500" />
+          </label>
+          <label className="text-sm text-neutral-300">
             <div className="flex justify-between items-baseline">
               <span>Search radius</span>
               <b className="text-emerald-400">{radius} mi</b>
@@ -171,8 +196,11 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
           {error && <div className="text-sm text-red-400">{error}</div>}
           <button onClick={submit} disabled={busy || !address.trim()}
             className="rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3.5 text-[15px] font-semibold disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-emerald-900/40">
-            {busy ? 'Locating…' : 'Show my deals →'}
+            {busy ? 'Locating…' : adding ? 'Save place →' : 'Show my deals →'}
           </button>
+          {onCancel && (
+            <button onClick={onCancel} className="text-sm text-neutral-500 hover:text-neutral-300 -mt-2">Cancel</button>
+          )}
         </div>
       </div>
     </div>

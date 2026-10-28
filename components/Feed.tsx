@@ -6,7 +6,11 @@ import { SkeletonCards } from './Skeleton'
 import { DealSheet } from './DealSheet'
 import { ListView } from './ListView'
 import { SavingsView } from './SavingsView'
+import { MealsView } from './MealsView'
 import { WatchChips } from './WatchChips'
+import { ForYouRow, type ForYouItem } from './ForYouRow'
+import { PlacesMenu, type SavedPlace } from './PlacesMenu'
+import { hiddenMatchers, isHidden } from '@/lib/foryou'
 import { addWatch, loadWatches, removeWatch, syncWatches, updateWatch, watchOwner, type PriceBasis, type Watch } from '@/lib/client/watches'
 import { addToActiveList } from '@/lib/client/list'
 import { createCode, initialCode } from '@/lib/client/sync'
@@ -41,8 +45,8 @@ const SORTS = [
 ]
 const DEALS_LIMIT = 200
 const DEALS_MAX = 500 // /api/deals clamps here
-type Tab = 'deals' | 'list' | 'savings'
-const TABS: Array<[Tab, string]> = [['deals', 'Deals'], ['list', 'My list'], ['savings', 'Savings']]
+type Tab = 'deals' | 'list' | 'meals' | 'savings'
+const TABS: Array<[Tab, string]> = [['deals', 'Deals'], ['list', 'List'], ['meals', 'Meals'], ['savings', 'Savings']]
 
 /** Does a deal meet a watch's target price, if it has one? */
 function meetsWatch(w: Watch, d: DealRecord): boolean {
@@ -54,11 +58,68 @@ function meetsWatch(w: Watch, d: DealRecord): boolean {
 
 interface Results { key: string; baseKey: string; deals: DealRecord[]; error: boolean }
 
-export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => void }) {
+export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
+  prefs: Prefs
+  onOpenSetup: (mode: 'edit' | 'add') => void
+  onChangePrefs: (p: Prefs) => void
+}) {
   const [tab, setTab] = useState<Tab>('deals')
   // the list code syncs list, watches and purchases across devices; every browser gets one
   const [code, setCode] = useState<string | null>(initialCode)
   useEffect(() => { if (!code) createCode().then(c => { if (c) setCode(c) }) }, [code])
+
+  // saved places: the morning scan covers each one; the current address is saved as one
+  const [places, setPlaces] = useState<SavedPlace[]>([])
+  const [placesOpen, setPlacesOpen] = useState(false)
+  useEffect(() => {
+    if (!code) return
+    fetch(`/api/places?code=${code}`).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!d) return
+      const list: SavedPlace[] = d.places ?? []
+      setPlaces(list)
+      const known = list.some(p => Math.abs(p.lat - prefs.lat) < 1e-6 && Math.abs(p.lng - prefs.lng) < 1e-6)
+      if (!known) {
+        fetch('/api/places', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code, label: prefs.label ?? (list.length ? prefs.address.split(',')[0] : 'Home'),
+            address: prefs.address, lat: prefs.lat, lng: prefs.lng, zip: prefs.zip, radius: prefs.radiusMiles,
+          }),
+        }).then(r => (r.ok ? r.json() : null)).then(res => {
+          if (res?.place) setPlaces(cur => [...cur.filter(p => p.id !== res.place.id), res.place])
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [code, prefs])
+  function pickPlace(p: SavedPlace) {
+    setPlacesOpen(false)
+    onChangePrefs({
+      address: p.address, lat: p.lat, lng: p.lng, zip: p.zip ?? prefs.zip,
+      radiusMiles: Number(p.radius_miles), label: p.label, enabledStores: null,
+    })
+  }
+  function deletePlace(p: SavedPlace) {
+    setPlaces(cur => cur.filter(x => x.id !== p.id))
+    fetch('/api/places', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, id: p.id }) }).catch(() => {})
+  }
+
+  // "not interested" terms, synced with the list code
+  const [hidden, setHidden] = useState<string[]>([])
+  const [hiddenOpen, setHiddenOpen] = useState(false)
+  useEffect(() => {
+    if (!code) return
+    fetch(`/api/hidden?code=${code}`).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setHidden(d.terms ?? []) }).catch(() => {})
+  }, [code])
+  const hiddenM = useMemo(() => hiddenMatchers(hidden), [hidden])
+  const hideTerm = useCallback((term: string) => {
+    const t = term.trim().toLowerCase()
+    setHidden(cur => (cur.includes(t) ? cur : [...cur, t]))
+    if (code) fetch('/api/hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, term: t }) }).catch(() => {})
+  }, [code])
+  function unhide(term: string) {
+    setHidden(cur => cur.filter(t => t !== term))
+    if (code) fetch('/api/hidden', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, term }) }).catch(() => {})
+  }
   const [meta, setMeta] = useState<Meta | null>(null)
   // results are tagged with the query that produced them, so a stale response is
   // never shown for newer filters and "loading" is simply "results don't match yet"
@@ -95,6 +156,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   const home = useMemo(() => ({ lat: prefs.lat, lng: prefs.lng }), [prefs.lat, prefs.lng])
   const distanceBySlug = useMemo(() => new Map((meta?.stores ?? []).map(s => [s.slug, s.distance_miles])), [meta])
 
+  const wantForYou = useRef(false)
   // open a specific deal: from a notification (?deal=ID) or the alerts list
   const openDealById = useCallback((id: number) => {
     fetch(`/api/deals?ids=${id}`).then(r => (r.ok ? r.json() : null))
@@ -107,6 +169,11 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   }, [openDealById])
   useEffect(() => {
     const url = new URL(window.location.href)
+    if (url.searchParams.has('foryou')) { // from the weekly digest
+      wantForYou.current = true
+      url.searchParams.delete('foryou')
+      window.history.replaceState({}, '', url.toString())
+    }
     const id = Number(url.searchParams.get('deal'))
     if (url.searchParams.has('deal')) {
       if (Number.isInteger(id) && id > 0) openDealById(id) // the feed tab is already showing
@@ -149,6 +216,8 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     .map(d => (distanceBySlug.has(d.merchant_slug) ? { ...d, distance_miles: distanceBySlug.get(d.merchant_slug) ?? null } : d)),
   [results, loading, loadingMore, distanceBySlug])
   const canShowMore = !loading && !failed && deals.length === limit && limit < DEALS_MAX
+  const shown = useMemo(() => (hidden.length ? deals.filter(d => !isHidden(d, hiddenM)) : deals), [deals, hidden.length, hiddenM])
+  const hiddenCount = deals.length - shown.length
 
   useEffect(() => {
     if (!meta || tab !== 'deals') return
@@ -194,6 +263,25 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     return () => { cancelled = true }
   }, [watches, meta, inRadius])
 
+  // For you: picked server-side from the list, watches and purchases
+  const [forYou, setForYou] = useState<ForYouItem[]>([])
+  const storesKey = inRadiusSlugs.join(',')
+  useEffect(() => {
+    if (!code || !meta || tab !== 'deals') return
+    const ctrl = new AbortController()
+    fetch('/api/foryou', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+      body: JSON.stringify({ code, stores: storesKey ? storesKey.split(',') : [] }),
+    }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setForYou(d.items ?? []) }).catch(() => {})
+    return () => ctrl.abort()
+  }, [code, meta, tab, storesKey, hidden.length, watches.length])
+  const forYouShown = useMemo(() => forYou.filter(f => !isHidden(f.deal, hiddenM)), [forYou, hiddenM])
+  useEffect(() => {
+    if (!wantForYou.current || !forYouShown.length) return
+    wantForYou.current = false
+    requestAnimationFrame(() => document.getElementById('foryou')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+  }, [forYouShown.length])
+
   const doWatch = useCallback((term: string) => setWatches(addWatch(term, owner)), [owner])
   // adding from a deal pins that exact deal, so the list prices what you looked at
   const doAddToList = useCallback((deal: DealRecord) => {
@@ -214,17 +302,24 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
       <div className="sticky top-0 z-10 bg-neutral-950/95 backdrop-blur pt-4 pb-2 flex flex-col gap-2">
         <div className="flex gap-2 items-center">
-          <div className="flex rounded-xl bg-neutral-900 p-1 text-sm">
+          <div className="flex shrink-0 rounded-xl bg-neutral-900 p-1 text-sm">
             {TABS.map(([value, label]) => (
               <button key={value} onClick={() => setTab(value)} aria-pressed={tab === value}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg whitespace-nowrap ${tab === value ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>{label}</button>
+                className={`px-2 sm:px-3 py-1.5 rounded-lg whitespace-nowrap ${tab === value ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>{label}</button>
             ))}
           </div>
-          <div className="flex-1" />
-          <button onClick={onOpenSetup} aria-label="Settings"
-            className="rounded-xl px-3 py-2 border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-900 max-w-[45%] truncate">
-            📍 {prefs.address.split(',')[0]} · {prefs.radiusMiles}mi
-          </button>
+          <div className="relative min-w-0 flex-1 flex justify-end">
+            <button onClick={() => setPlacesOpen(o => !o)} aria-label="Places and settings" aria-expanded={placesOpen}
+              className="max-w-full rounded-xl px-3 py-2 border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-900 truncate">
+              📍 {prefs.label ?? prefs.address.split(',')[0]} · {prefs.radiusMiles}mi ▾
+            </button>
+            {placesOpen && (
+              <PlacesMenu places={places} prefs={prefs} onPick={pickPlace} onDelete={deletePlace}
+                onAdd={() => { setPlacesOpen(false); onOpenSetup('add') }}
+                onEdit={() => { setPlacesOpen(false); onOpenSetup('edit') }}
+                onClose={() => setPlacesOpen(false)} />
+            )}
+          </div>
         </div>
 
         {tab === 'deals' && (
@@ -268,8 +363,22 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
       </div>
 
       {tab === 'list' ? <ListView key={code ?? 'local'} code={code} storeSlugs={inRadiusSlugs} stores={inRadius} home={home} />
-        : tab === 'savings' ? <SavingsView code={code} /> : (
+        : tab === 'savings' ? <SavingsView code={code} />
+        : tab === 'meals' ? <MealsView code={code} storeSlugs={inRadiusSlugs} onSearch={term => { setQ(term); setTab('deals') }} /> : (
         <>
+          {meta && inRadius.length === 0 && (
+            <div className="mt-4 rounded-xl border border-sky-900 bg-sky-950/40 p-4 text-sm">
+              <div className="font-medium">No scanned stores within {prefs.radiusMiles} mi of {prefs.label ?? 'here'} yet.</div>
+              <div className="text-neutral-400 mt-1">This place is saved, so the next morning scan includes it. Want deals sooner?</div>
+              <button onClick={refreshNow} disabled={refreshState !== 'idle' && refreshState !== 'error'}
+                className="mt-2 rounded-lg border border-sky-800 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-60">
+                {refreshState === 'done' ? '✓ Scan started — check back in a few minutes' : '🔄 Scan now'}
+              </button>
+            </div>
+          )}
+
+          {!hasFilters && forYouShown.length > 0 && <ForYouRow items={forYouShown} onOpen={setSelected} />}
+
           {watches.length > 0 && (
             <WatchChips watches={watches} hits={watchHits} pushStatus={pushStatus}
               onEnablePush={() => enablePush(code).then(setPushStatus)}
@@ -284,6 +393,11 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
                 <span className="text-sm font-semibold">🍳 Dinner ideas from this week&apos;s deals</span>
                 <span className="text-neutral-500 text-xs">{dinnerOpen ? 'hide' : 'show'}</span>
               </button>
+              {dinnerOpen && (
+                <button onClick={() => setTab('meals')} className="mt-1 text-xs text-sky-400 hover:text-sky-300">
+                  Plan the whole week and add it to your list →
+                </button>
+              )}
               {dinnerOpen && (
                 <div className="grid sm:grid-cols-3 gap-3 mt-3">
                   {dinner.map(idea => (
@@ -309,13 +423,26 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
 
           {(!loading || loadingMore) && !failed && (
             <div className="flex items-center gap-3 mt-3 min-h-7">
-              <div className="text-xs text-neutral-500">{deals.length}{deals.length === limit ? '+' : ''} deals{qTerm ? ` for “${q.trim()}”` : ''}</div>
+              <div className="text-xs text-neutral-500">{shown.length}{deals.length === limit ? '+' : ''} deals{qTerm ? ` for “${q.trim()}”` : ''}</div>
+              {hidden.length > 0 && (
+                <button onClick={() => setHiddenOpen(o => !o)} aria-expanded={hiddenOpen} className="text-xs text-neutral-600 hover:text-neutral-300">
+                  🙈 {hiddenCount > 0 ? `${hiddenCount} hidden` : `${hidden.length} hidden term${hidden.length === 1 ? '' : 's'}`}
+                </button>
+              )}
               {canWatchQuery && (
                 <button onClick={() => doWatch(qTerm)}
                   className="text-xs rounded-lg border border-neutral-700 px-2 py-1 text-neutral-300 hover:bg-neutral-800">
                   👀 Watch “{q.trim()}”
                 </button>
               )}
+            </div>
+          )}
+          {hiddenOpen && hidden.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {hidden.map(t => (
+                <button key={t} onClick={() => unhide(t)} aria-label={`Show ${t} again`}
+                  className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800">{t} ×</button>
+              ))}
             </div>
           )}
           {failed ? (
@@ -328,7 +455,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
               </div>
             </div>
           ) : loading && !loadingMore ? <SkeletonCards />
-            : deals.length === 0 ? (
+            : shown.length === 0 ? (
               <div className="text-center text-neutral-500 mt-20">
                 <div className="text-4xl mb-2">🔍</div>
                 No deals match{qTerm ? ` “${q.trim()}”` : ''}.
@@ -341,7 +468,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 mt-1">{deals.map(d => <DealCard key={d.id} deal={d} onClick={() => setSelected(d)} />)}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 mt-1">{shown.map(d => <DealCard key={d.id} deal={d} onClick={() => setSelected(d)} />)}</div>
                 {(canShowMore || loadingMore) && (
                   <div className="flex justify-center mt-6">
                     <button onClick={() => setMore({ baseKey, limit: Math.min(limit + DEALS_LIMIT, DEALS_MAX) })} disabled={loadingMore}
@@ -378,7 +505,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
 
       {selected && (
         <DealSheet deal={selected} onClose={() => setSelected(null)}
-          onWatch={doWatch} onAddToList={doAddToList} />
+          onWatch={doWatch} onAddToList={doAddToList} onHide={code ? hideTerm : undefined} />
       )}
     </div>
   )

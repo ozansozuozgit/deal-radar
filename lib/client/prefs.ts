@@ -1,6 +1,7 @@
 export interface Prefs {
   address: string; lat: number; lng: number; zip: string
   radiusMiles: number; enabledStores: string[] | null  // null = all
+  label?: string                                       // saved place name, e.g. "Home"
 }
 
 const KEY = 'deal-radar-prefs-v1'

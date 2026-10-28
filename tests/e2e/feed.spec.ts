@@ -26,6 +26,6 @@ test('setup → feed → search → sheet → list', async ({ page }) => {
   await expect(page.getByRole('button', { name: /add to list/i })).toBeHidden()
 
   // list tab shows the added item with comparison data
-  await page.getByRole('button', { name: 'My list', exact: true }).click()
+  await page.getByRole('button', { name: 'List', exact: true }).click()
   await expect(page.getByText(/where to shop|no current deal|best:/i).first()).toBeVisible({ timeout: 15_000 })
 })

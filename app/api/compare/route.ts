@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchAll, getServiceClient } from '@/lib/db'
 import { matchesForItem, type CompareDeal } from '@/lib/compare'
+import { canonicalize } from '@/lib/parse/canonical'
 
 export const dynamic = 'force-dynamic'
 
-const COLUMNS = 'id, name, normalized_name, merchant_slug, price, original_price, unit, size_qty, size_unit, category, flyers!inner(merchant_name)'
+const COLUMNS = 'id, name, normalized_name, canonical, merchant_slug, price, original_price, unit, size_qty, size_unit, category, flyers!inner(merchant_name)'
 
 /**
  * Shopping-list matching needs every active priced deal, not just the top 500 by
@@ -51,5 +52,10 @@ export async function POST(req: NextRequest) {
     const { data } = await db.from('deals').select(COLUMNS).in('id', missing).gte('valid_to', now)
     for (const r of (data ?? []) as unknown as Row[]) hit.add(flatten(r))
   }
-  return NextResponse.json({ deals: [...hit] })
+  // typical prices and sale cycles, so items without a deal can say when one usually comes
+  const canon = [...new Set(items.map(canonicalize).filter((c): c is string => !!c))]
+  const { data: stats } = canon.length
+    ? await db.from('price_stats').select('canonical, basis, median, p25, low, samples, stores, cycle_days, last_sale').in('canonical', canon)
+    : { data: [] }
+  return NextResponse.json({ deals: [...hit], stats: stats ?? [] })
 }

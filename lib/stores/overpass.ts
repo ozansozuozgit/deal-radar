@@ -52,14 +52,18 @@ function tokens(name: string): Set<string> {
   return new Set(slugify(name).split('-').filter(t => t && !STOP.has(t)))
 }
 
-export async function syncStores(loc: LocationConfig, logos?: Map<string, string>): Promise<void> {
+/**
+ * Find each chain's nearest branch to `loc` on OpenStreetMap. Every branch found is kept in
+ * store_branches; the default location also refreshes the stores table itself.
+ */
+export async function syncStores(loc: LocationConfig, logos?: Map<string, string>, { branchesOnly = false } = {}): Promise<void> {
   const db = getServiceClient()
   const { data: merchants } = await db.from('flyers').select('merchant_slug, merchant_name, source')
   if (!merchants?.length) return
   const unique = new Map(merchants.map(m => [m.merchant_slug, m]))
 
   // Upsert names/logos first so they survive even when Overpass is down.
-  if (logos?.size) {
+  if (logos?.size && !branchesOnly) {
     const logoRows = [...unique.values()]
       .filter(m => logos.has(m.merchant_slug))
       .map(m => ({
@@ -94,6 +98,15 @@ export async function syncStores(loc: LocationConfig, logos?: Map<string, string
     [...unique.values()].map(m => ({ slug: m.merchant_slug, name: m.merchant_name })),
     elements, loc,
   ).map(r => ({ ...r, source: unique.get(r.slug)!.source })) // logo_url handled above
+  const branches = rows.filter(r => r.lat != null && r.lng != null).map(r => ({
+    source: r.source, slug: r.slug, lat: r.lat!, lng: r.lng!, branch_address: r.branch_address,
+    last_seen: new Date().toISOString(),
+  }))
+  if (branches.length) {
+    const { error: berr } = await db.from('store_branches').upsert(branches, { onConflict: 'source,slug,lat,lng' })
+    if (berr) console.error('branch upsert failed:', berr.message)
+  }
+  if (branchesOnly) return
   const { error } = await db.from('stores').upsert(rows, { onConflict: 'source,slug' })
   if (error) throw new Error(`stores upsert failed: ${error.message}`)
 }
