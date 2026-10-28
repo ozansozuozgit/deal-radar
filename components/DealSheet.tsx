@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { isHistoricalLow, type DealRecord } from './DealCard'
 import { FlyerCrop } from './FlyerCrop'
+import { Img, NoImage } from './Img'
 import { daysLeft as daysUntil } from '@/lib/dates'
 import { cycleText, verdictText, type PriceStats } from '@/lib/priceCheck'
 
@@ -94,8 +95,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
             className={`w-36 sm:w-44 shrink-0 self-start relative group ${hasVisual ? 'cursor-zoom-in' : 'cursor-default'}`}
             aria-label={hasVisual ? 'Expand image' : undefined}>
             {deal.crop ? <FlyerCrop crop={deal.crop} alt={deal.name} />
-              : deal.image_url ? <img src={deal.image_url} alt="" className="w-full aspect-square object-contain rounded-lg bg-white" />
-              : <div className="w-full aspect-square rounded-lg bg-neutral-800 flex items-center justify-center text-4xl">🛒</div>}
+              : <Img src={deal.image_url} alt="" className="w-full aspect-square object-contain rounded-lg bg-white" fallback={<NoImage size="text-4xl" />} />}
             {hasVisual && (
               <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/60 text-white text-xs px-1.5 py-0.5 opacity-80 group-hover:opacity-100">⤢</span>
             )}
@@ -121,7 +121,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
             </div>
             {deal.prime_price != null && <div className="text-sm text-sky-300 mt-1">${deal.prime_price.toFixed(2)} with Prime</div>}
             <div className="text-sm text-neutral-400 mt-2.5 flex items-center gap-1.5 flex-wrap">
-              {deal.merchant_logo && <img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full bg-white object-contain" />}
+              <Img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full bg-white object-contain" />
               {deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi away` : ''}
               {daysLeft != null && ` · ${daysLeft === 0 ? 'ends today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}`}
             </div>

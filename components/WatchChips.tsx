@@ -38,12 +38,13 @@ export function WatchChips({ watches, hits, pushStatus, onEnablePush, onUpdate, 
     <div className="mt-3">
       <div className="flex items-center gap-3 mb-1.5 flex-wrap">
         <div className="text-xs uppercase tracking-wide text-neutral-500">👀 Watching</div>
-        {pushStatus === 'idle' && (
+        {(pushStatus === 'idle' || pushStatus === 'error') && (
           <button onClick={onEnablePush}
             className="text-xs rounded-lg border border-neutral-700 px-2 py-0.5 text-neutral-300 hover:bg-neutral-800">
-            🔔 Notify me when these go on sale
+            {pushStatus === 'error' ? '⚠️ Couldn’t turn on alerts — try again' : '🔔 Notify me when these go on sale'}
           </button>
         )}
+        {pushStatus === 'needs-install' && <span className="text-xs text-neutral-500">🔔 For alerts: Share → Add to Home Screen, then open it from there</span>}
         {pushStatus === 'subscribed' && (
           <button onClick={toggleAlerts} aria-expanded={alertsOpen} className="text-xs text-emerald-500 hover:text-emerald-400">
             🔔 alerts on · {alertsOpen ? 'hide recent' : 'recent alerts'}

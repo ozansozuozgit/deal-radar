@@ -1,4 +1,5 @@
 import { getDeviceId } from './device'
+import { readJson, readString, writeJson, writeString } from './storage'
 
 export type PriceBasis = 'item' | 'lb'
 export interface Watch { term: string; maxPrice?: number | null; basis?: PriceBasis }
@@ -20,12 +21,15 @@ function syncServer(method: 'POST' | 'DELETE', owner: string, w: Watch) {
 }
 
 export function loadWatches(): Watch[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]') } catch { return [] }
+  const raw = readJson<unknown>(KEY, [])
+  return Array.isArray(raw)
+    ? raw.filter((w): w is Watch => typeof w?.term === 'string' && !!w.term.trim())
+      .map(w => ({ term: w.term, maxPrice: typeof w.maxPrice === 'number' ? w.maxPrice : null, basis: w.basis === 'lb' ? 'lb' as const : 'item' as const }))
+    : []
 }
 
 export function saveWatches(watches: Watch[]): void {
-  localStorage.setItem(KEY, JSON.stringify(watches))
+  writeJson(KEY, watches)
 }
 
 export function addWatch(term: string, owner: string, maxPrice?: number | null, basis: PriceBasis = 'item'): Watch[] {
@@ -60,13 +64,13 @@ export function removeWatch(term: string, owner: string): Watch[] {
  */
 export async function syncWatches(code: string): Promise<Watch[]> {
   const owner = watchOwner(code)
-  if (localStorage.getItem(MIGRATED_KEY) !== owner) {
+  if (readString(MIGRATED_KEY) !== owner) {
     const device = getDeviceId()
     await Promise.all(loadWatches().map(async w => {
       await syncServer('POST', owner, w)
       await syncServer('DELETE', device, w)
     }))
-    localStorage.setItem(MIGRATED_KEY, owner)
+    writeString(MIGRATED_KEY, owner)
   }
   const res = await fetch(`/api/watches?owner=${encodeURIComponent(owner)}`)
   if (!res.ok) return loadWatches()

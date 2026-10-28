@@ -1,5 +1,6 @@
 import type { CropRect } from '@/lib/types'
 import { FlyerCrop } from './FlyerCrop'
+import { Img, NoImage } from './Img'
 import { daysLeft as daysUntil } from '@/lib/dates'
 
 export interface DealRecord {
@@ -28,8 +29,7 @@ export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => 
     <button onClick={onClick}
       className="text-left rounded-xl bg-neutral-900 p-3 flex flex-col gap-2 hover:bg-neutral-800/80 active:scale-[0.98] transition">
       {deal.crop ? <FlyerCrop crop={deal.crop} alt={deal.name} />
-        : deal.image_url ? <img src={deal.image_url} alt="" loading="lazy" className="w-full aspect-square object-contain rounded-lg bg-white" />
-        : <div className="w-full aspect-square rounded-lg bg-neutral-800 flex items-center justify-center text-3xl">🛒</div>}
+        : <Img src={deal.image_url} alt="" loading="lazy" className="w-full aspect-square object-contain rounded-lg bg-white" fallback={<NoImage />} />}
       <div className="text-sm font-medium leading-tight line-clamp-2">{deal.name}</div>
       {deal.description && <div className="text-xs text-neutral-400 line-clamp-1">{deal.description}</div>}
       <div className="mt-auto flex items-baseline gap-2 flex-wrap">
@@ -58,7 +58,7 @@ export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => 
       {deal.prime_price != null && <div className="text-xs text-sky-300">${deal.prime_price.toFixed(2)} with Prime</div>}
       <div className="flex items-center justify-between text-xs text-neutral-400 gap-1">
         <span className="inline-flex items-center gap-1.5 min-w-0">
-          {deal.merchant_logo && <img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white shrink-0" />}
+          <Img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white shrink-0" />
           <span className="truncate">{deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}</span>
         </span>
         {daysLeft != null && <span className={`shrink-0 ${daysLeft <= 1 ? 'text-amber-400' : ''}`}>{daysLeft === 0 ? 'ends today' : `${daysLeft}d left`}</span>}

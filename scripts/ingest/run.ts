@@ -1,13 +1,13 @@
 import 'dotenv/config'
 import { getServiceClient } from '@/lib/db'
-import { dealRow, flyerRow } from '@/lib/ingest/upsert'
+import { chunk, dealRow, dedupeBy, flyerRow } from '@/lib/ingest/upsert'
 import { flippSource } from '@/lib/sources/flipp'
 import { fairwaySource } from '@/lib/sources/fairway'
 import { wholeFoodsSource } from '@/lib/sources/wholefoods'
 import { DEFAULT_LOCATION } from '@/config/location'
 import { syncStores } from '@/lib/stores/overpass'
 import { placesToScan } from '@/lib/places'
-import type { DealSource, LocationConfig } from '@/lib/types'
+import type { DealSource, FlyerInput, LocationConfig } from '@/lib/types'
 
 const sources: DealSource[] = [flippSource, fairwaySource, wholeFoodsSource]
 
@@ -55,51 +55,65 @@ async function flyersEverywhere(src: DealSource, extras: LocationConfig[]) {
 async function runSource(src: DealSource, logos: Map<string, string>, closeSlugs: Set<string>, extras: LocationConfig[]) {
   const db = getServiceClient()
   const started = new Date().toISOString()
-  let flyerCount = 0, dealCount = 0, error: string | null = null
+  let flyerCount = 0, dealCount = 0, failedFlyers = 0, error: string | null = null
+  let flyers: Awaited<ReturnType<DealSource['fetchFlyers']>> = []
   try {
-    const flyers = await flyersEverywhere(src, extras)
+    flyers = await flyersEverywhere(src, extras)
     for (const f of flyers) if (f.logoUrl) logos.set(f.merchantSlug, f.logoUrl)
-    for (const flyer of flyers) {
-      const { data: frow, error: ferr } = await db.from('flyers')
-        .upsert(flyerRow(flyer), { onConflict: 'source,external_id' })
-        .select('id').single()
-      if (ferr || !frow) throw new Error(`flyer upsert failed: ${ferr?.message}`)
-      flyerCount++
-      let deals
-      try { deals = await src.fetchDeals(flyer) }
-      catch (e) { console.error(`[${src.id}] deals failed for flyer ${flyer.externalId}:`, e); continue }
-      if (src.id === 'flipp' && closeSlugs.has(flyer.merchantSlug)) {
-        const { enrichFlippDeals } = await import('@/lib/sources/flipp')
-        deals = await enrichFlippDeals(deals)
-        console.log(`[flipp] enriched ${deals.length} items for nearby ${flyer.merchantSlug}`)
-      }
-      if (deals.length === 0) continue
-      let rows = deals.map(d => dealRow(d, frow.id))
-      if (src.id === 'fairway') {
-        // preserve extraction-sourced prices across rate-limited runs
-        const nullIds = rows.filter(r => r.price == null).map(r => r.external_id)
-        if (nullIds.length) {
-          const { mergePreservedPrices } = await import('@/lib/ingest/preserve')
-          const { data: existing } = await db.from('deals')
-            .select('external_id, price, price_text, unit_price')
-            .eq('source', src.id).in('external_id', nullIds).not('price', 'is', null)
-          if (existing?.length) rows = mergePreservedPrices(rows, existing)
-        }
-      }
-      const { error: derr } = await db.from('deals').upsert(rows, { onConflict: 'source,external_id' })
-      if (derr) throw new Error(`deal upsert failed: ${derr.message}`)
-      dealCount += rows.length
-    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e)
-    console.error(`[${src.id}] FAILED:`, error)
   }
+  // one bad flyer (odd payload, upstream 500, duplicate rows) must not sink the rest
+  for (const flyer of flyers) {
+    try {
+      dealCount += await ingestFlyer(src, flyer, closeSlugs)
+      flyerCount++
+    } catch (e) {
+      failedFlyers++
+      console.error(`[${src.id}] flyer ${flyer.externalId} (${flyer.merchantSlug}) failed:`, e instanceof Error ? e.message : e)
+    }
+  }
+  // the source only counts as failed when nothing came through
+  if (!error && flyers.length > 0 && flyerCount === 0) error = `all ${failedFlyers} flyers failed`
+  if (error) console.error(`[${src.id}] FAILED:`, error)
   await db.from('ingest_runs').insert({
     source: src.id, started_at: started, finished_at: new Date().toISOString(),
     flyer_count: flyerCount, deal_count: dealCount, error,
   })
-  console.log(`[${src.id}] flyers=${flyerCount} deals=${dealCount} error=${error ?? 'none'}`)
+  console.log(`[${src.id}] flyers=${flyerCount} failed=${failedFlyers} deals=${dealCount} error=${error ?? 'none'}`)
   return error === null
+}
+
+async function ingestFlyer(src: DealSource, flyer: FlyerInput, closeSlugs: Set<string>): Promise<number> {
+  const db = getServiceClient()
+  const { data: frow, error: ferr } = await db.from('flyers')
+    .upsert(flyerRow(flyer), { onConflict: 'source,external_id' })
+    .select('id').single()
+  if (ferr || !frow) throw new Error(`flyer upsert failed: ${ferr?.message}`)
+  let deals = await src.fetchDeals(flyer)
+  if (src.id === 'flipp' && closeSlugs.has(flyer.merchantSlug)) {
+    const { enrichFlippDeals } = await import('@/lib/sources/flipp')
+    deals = await enrichFlippDeals(deals)
+    console.log(`[flipp] enriched ${deals.length} items for nearby ${flyer.merchantSlug}`)
+  }
+  if (deals.length === 0) return 0
+  let rows = dedupeBy(deals.map(d => dealRow(d, frow.id)), r => r.external_id)
+  if (src.id === 'fairway') {
+    // preserve extraction-sourced prices across rate-limited runs
+    const nullIds = rows.filter(r => r.price == null).map(r => r.external_id)
+    if (nullIds.length) {
+      const { mergePreservedPrices } = await import('@/lib/ingest/preserve')
+      const { data: existing } = await db.from('deals')
+        .select('external_id, price, price_text, unit_price')
+        .eq('source', src.id).in('external_id', nullIds).not('price', 'is', null)
+      if (existing?.length) rows = mergePreservedPrices(rows, existing)
+    }
+  }
+  for (const batch of chunk(rows, 500)) {
+    const { error: derr } = await db.from('deals').upsert(batch, { onConflict: 'source,external_id' })
+    if (derr) throw new Error(`deal upsert failed: ${derr.message}`)
+  }
+  return rows.length
 }
 
 async function main() {
@@ -140,4 +154,7 @@ async function main() {
   } catch (e) { console.error('dinner ideas failed:', e) }
   if (results.every(ok => !ok)) process.exit(1) // fail the job only if EVERY source failed
 }
-main()
+main().catch(e => {
+  console.error('ingest crashed:', e)
+  process.exit(1)
+})

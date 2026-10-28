@@ -20,3 +20,10 @@ export function timeAgo(iso: string | null | undefined, now: number = Date.now()
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
 }
+
+/** Hours elapsed since `iso`, or null for a missing/unparseable date. */
+export function hoursSince(iso: string | null | undefined, now: number = Date.now()): number | null {
+  if (!iso) return null
+  const t = +new Date(iso)
+  return Number.isFinite(t) ? (now - t) / 3_600_000 : null
+}

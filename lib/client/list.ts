@@ -1,3 +1,5 @@
+import { readJson, writeJson } from './storage'
+
 // Local-only list, used until (or if) a server list code can be created.
 export interface ListItem {
   text: string
@@ -11,12 +13,21 @@ export interface ListItem {
 const KEY = 'deal-radar-list-v1'
 
 export function loadList(): ListItem[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]') } catch { return [] }
+  const raw = readJson<unknown>(KEY, [])
+  return Array.isArray(raw)
+    ? raw.filter((i): i is ListItem => typeof i?.text === 'string' && !!i.text.trim()).map(i => ({
+      text: i.text,
+      qty: typeof i.qty === 'number' && i.qty > 0 ? i.qty : 1,
+      unit: typeof i.unit === 'string' ? i.unit : null,
+      pinnedDealId: Number.isInteger(i.pinnedDealId) ? i.pinnedDealId : null,
+      rejectedDealIds: Array.isArray(i.rejectedDealIds) ? i.rejectedDealIds.filter(n => Number.isInteger(n)) : [],
+      checked: i.checked === true,
+    }))
+    : []
 }
 
 export function saveList(items: ListItem[]): void {
-  localStorage.setItem(KEY, JSON.stringify(items))
+  writeJson(KEY, items)
 }
 
 export function addListItem(item: ListItem | string): ListItem[] {

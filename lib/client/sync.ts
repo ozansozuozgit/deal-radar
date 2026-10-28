@@ -1,16 +1,16 @@
 import { loadList } from './list'
+import { readString, writeString } from './storage'
 
 // One 6-character code ties this browser to a server-side list. Everything that should
 // follow Ozan across phone and laptop (list, watches, purchases) hangs off it.
 const CODE_KEY = 'deal-radar-listcode-v1'
 
 export function storedCode(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(CODE_KEY)
+  return readString(CODE_KEY)
 }
 
 export function setStoredCode(code: string): void {
-  localStorage.setItem(CODE_KEY, code)
+  writeString(CODE_KEY, code)
 }
 
 // URL join code (?list=XXXXXX) > stored code. A join code is remembered and stripped
@@ -20,11 +20,11 @@ export function initialCode(): string | null {
   const url = new URL(window.location.href)
   const joinCode = url.searchParams.get('list')?.toUpperCase() ?? null
   if (joinCode) {
-    setStoredCode(joinCode)
+    if (/^[A-Z0-9]{6}$/.test(joinCode)) setStoredCode(joinCode) // ignore mangled links
     url.searchParams.delete('list')
     window.history.replaceState({}, '', url.toString())
   }
-  return joinCode ?? storedCode()
+  return storedCode()
 }
 
 /** Create a server-side list for this browser, seeded with any local-only items. */

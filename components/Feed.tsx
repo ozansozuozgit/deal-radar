@@ -17,13 +17,9 @@ import { createCode, initialCode } from '@/lib/client/sync'
 import { currentPushStatus, enablePush, linkPush, type PushStatus } from '@/lib/client/push'
 import { pricePerLb } from '@/lib/compare'
 import { savePrefs, type Prefs } from '@/lib/client/prefs'
-import { timeAgo } from '@/lib/dates'
-
-interface DinnerIdea {
-  title: string; emoji: string; description: string
-  ingredients: Array<{ name: string; dealName?: string; store?: string; price?: number }>
-  estCost: number
-}
+import { hoursSince, timeAgo } from '@/lib/dates'
+import { useOnline } from '@/lib/client/online'
+import type { DinnerIdea } from '@/lib/dinner'
 
 interface Meta {
   stores: Array<{
@@ -31,6 +27,7 @@ interface Meta {
     lat: number | null; lng: number | null
   }>
   freshness: Array<{ source: string; finished_at: string; deal_count: number; error: string | null }>
+  lastSuccess: string | null
 }
 
 const CATEGORIES: Array<[string, string]> = [
@@ -147,11 +144,16 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
     linkPush(code)
   }, [code])
   useEffect(() => {
-    fetch('/api/dinner').then(r => r.json()).then(d => setDinner(d.ideas ?? [])).catch(() => {})
+    fetch('/api/dinner').then(r => r.json()).then(d => setDinner(Array.isArray(d?.ideas) ? d.ideas : [])).catch(() => {})
   }, [])
   useEffect(() => {
-    fetch(`/api/meta?lat=${prefs.lat}&lng=${prefs.lng}`).then(r => r.json()).then(setMeta)
-      .catch(() => setMeta({ stores: [], freshness: [] }))
+    fetch(`/api/meta?lat=${prefs.lat}&lng=${prefs.lng}`).then(r => r.json())
+      .then(d => setMeta({
+        stores: Array.isArray(d?.stores) ? d.stores : [],
+        freshness: Array.isArray(d?.freshness) ? d.freshness : [],
+        lastSuccess: typeof d?.lastSuccess === 'string' ? d.lastSuccess : null,
+      }))
+      .catch(() => setMeta({ stores: [], freshness: [], lastSuccess: null }))
   }, [prefs.lat, prefs.lng])
   const home = useMemo(() => ({ lat: prefs.lat, lng: prefs.lng }), [prefs.lat, prefs.lng])
   const distanceBySlug = useMemo(() => new Map((meta?.stores ?? []).map(s => [s.slug, s.distance_miles])), [meta])
@@ -196,13 +198,15 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   const baseKey = useMemo(() => {
     const params = new URLSearchParams()
     if (q.trim()) params.set('q', q.trim())
-    const stores = storeSel ?? inRadius.map(s => s.slug)
+    // saved picks can point at stores that are now out of radius or gone; ignore those
+    const picked = storeSel?.filter(s => inRadiusSlugs.includes(s))
+    const stores = picked?.length ? picked : inRadiusSlugs
     if (stores.length) params.set('stores', stores.join(','))
     if (catSel?.length === 1) params.set('category', catSel[0])
     params.set('status', upcoming ? 'upcoming' : 'active')
     params.set('sort', sort)
     return params.toString()
-  }, [q, storeSel, catSel, sort, upcoming, inRadius])
+  }, [q, storeSel, catSel, sort, upcoming, inRadiusSlugs])
   // "Show more" raises the limit for the current filters only; any filter change resets it
   const [more, setMore] = useState({ baseKey: '', limit: DEALS_LIMIT })
   const limit = more.baseKey === baseKey ? more.limit : DEALS_LIMIT
@@ -242,6 +246,13 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [selected])
+
+  const online = useOnline()
+  // the daily scan runs at ~6am; if the newest successful run is much older, it's failing
+  const lastGood = meta?.lastSuccess ?? null
+  const allFailing = !!meta?.freshness.length && meta.freshness.every(f => f.error)
+  const stale = (hoursSince(lastGood) ?? 0) > 36 || (allFailing && !lastGood)
+  const closestMiles = Math.min(...(meta?.stores ?? []).map(s => s.distance_miles ?? Infinity))
 
   const hasFilters = !!q.trim() || !!storeSel || !!catSel || upcoming
   function clearFilters() { setQ(''); setStoreSel(null); setCatSel(null); setUpcoming(false) }
@@ -362,6 +373,17 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
         )}
       </div>
 
+      {!online && (
+        <div className="mt-3 rounded-xl border border-sky-900 bg-sky-950/40 px-3 py-2 text-xs text-sky-200" role="status">
+          📴 You&apos;re offline — showing deals saved on this device. Prices may have changed.
+        </div>
+      )}
+      {online && stale && (
+        <div className="mt-3 rounded-xl border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200" role="status">
+          ⚠️ {lastGood ? <>Deals were last updated {timeAgo(lastGood)}</> : <>The latest deal scans all failed</>} — the daily scan may be failing, so some may have ended.
+        </div>
+      )}
+
       {tab === 'list' ? <ListView key={code ?? 'local'} code={code} storeSlugs={inRadiusSlugs} stores={inRadius} home={home} />
         : tab === 'savings' ? <SavingsView code={code} />
         : tab === 'meals' ? <MealsView code={code} storeSlugs={inRadiusSlugs} onSearch={term => { setQ(term); setTab('deals') }} /> : (
@@ -369,7 +391,12 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
           {meta && inRadius.length === 0 && (
             <div className="mt-4 rounded-xl border border-sky-900 bg-sky-950/40 p-4 text-sm">
               <div className="font-medium">No scanned stores within {prefs.radiusMiles} mi of {prefs.label ?? 'here'} yet.</div>
-              <div className="text-neutral-400 mt-1">This place is saved, so the next morning scan includes it. Want deals sooner?</div>
+              <div className="text-neutral-400 mt-1">
+                Showing everything nearby for now{Number.isFinite(closestMiles) ? <> (the closest scanned store is {closestMiles.toFixed(1)} mi away)</> : null}.
+                This place is saved, so the next morning scan includes it. Want deals sooner?
+              </div>
+              <button onClick={() => onOpenSetup('edit')}
+                className="mt-2 mr-2 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800">Change radius</button>
               <button onClick={refreshNow} disabled={refreshState !== 'idle' && refreshState !== 'error'}
                 className="mt-2 rounded-lg border border-sky-800 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-60">
                 {refreshState === 'done' ? '✓ Scan started — check back in a few minutes' : '🔄 Scan now'}
@@ -448,7 +475,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
           {failed ? (
             <div className="text-center text-neutral-400 mt-20" role="alert">
               <div className="text-4xl mb-2">📡</div>
-              Couldn&apos;t load deals.
+              {online ? <>Couldn&apos;t load deals.</> : <>You&apos;re offline, and these deals aren&apos;t saved on this device yet.</>}
               <div>
                 <button onClick={() => { setResults(null); setRetry(n => n + 1) }}
                   className="mt-3 rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-800">Try again</button>

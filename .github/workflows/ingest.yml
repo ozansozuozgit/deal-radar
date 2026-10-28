@@ -13,6 +13,9 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write   # for the keepalive step below
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,3 +35,10 @@ jobs:
           INGEST_LAT: ${{ secrets.INGEST_LAT }}
           INGEST_LNG: ${{ secrets.INGEST_LNG }}
           INGEST_WF_STORE_ID: ${{ secrets.INGEST_WF_STORE_ID }}
+      # GitHub disables scheduled workflows after 60 days without repo activity, which
+      # would silently freeze the deals. Re-enabling via the API keeps the schedule alive.
+      - name: Keep the daily schedule enabled
+        if: always() && github.event_name == 'schedule'
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/ingest.yml/enable" || true
+        env:
+          GH_TOKEN: ${{ github.token }}

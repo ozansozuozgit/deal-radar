@@ -46,3 +46,19 @@ export function dealRow(d: DealInput, flyerId: number) {
     last_seen: new Date().toISOString(),
   }
 }
+
+/**
+ * Postgres rejects an upsert batch that touches the same conflict key twice
+ * ("ON CONFLICT DO UPDATE command cannot affect row a second time"), and flyer feeds
+ * do repeat items. Keep the last occurrence of each key.
+ */
+export function dedupeBy<T>(rows: T[], key: (r: T) => string): T[] {
+  return [...new Map(rows.map(r => [key(r), r])).values()]
+}
+
+/** Split into batches so one huge flyer doesn't hit request-size or statement timeouts. */
+export function chunk<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size))
+  return out
+}

@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addListItem, loadList, removeListItem, removeListItems, updateListItem, type ListItem } from '@/lib/client/list'
+import { readJson, writeJson } from '@/lib/client/storage'
 import { assignItems, compareList, type CompareDeal, type CompareItem, type DealPick } from '@/lib/compare'
 import { formatQty, parseItem, qtyStep } from '@/lib/quantity'
 import { tripOptions, type LatLng } from '@/lib/trip'
@@ -22,6 +23,8 @@ const fromServer = (i: ServerItem): ListItem => ({
 })
 
 const money = (n: number) => `$${n.toFixed(2)}`
+// last priced matches, so the list still shows prices in a store with no signal
+const COMPARE_CACHE_KEY = 'deal-radar-compare-v2'
 
 export function ListView({ code, storeSlugs, stores, home }: {
   code: string | null
@@ -31,8 +34,12 @@ export function ListView({ code, storeSlugs, stores, home }: {
 }) {
   const [items, setItems] = useState<ListItem[]>(() => (code ? [] : loadList()))
   const [draft, setDraft] = useState('')
-  const [deals, setDeals] = useState<CompareDeal[] | null>(null)
+  const [deals, setDeals] = useState<CompareDeal[] | null>(() => {
+    const cached = readJson<unknown>(COMPARE_CACHE_KEY, null)
+    return Array.isArray(cached) ? cached as CompareDeal[] : null
+  })
   const [stats, setStats] = useState<Map<string, PriceStats>>(new Map())
+  const [syncError, setSyncError] = useState(false)
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const [mode, setMode] = useState<'plan' | 'shop'>('plan')
   const [planKey, setPlanKey] = useState<string | null>(null) // null = recommended
@@ -74,10 +81,13 @@ export function ListView({ code, storeSlugs, stores, home }: {
         body: JSON.stringify({ items: body, stores: storeSlugs }),
       }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then(d => {
-          setDeals((d.deals ?? []) as CompareDeal[])
+          const fresh = (Array.isArray(d.deals) ? d.deals : []) as CompareDeal[]
+          setDeals(fresh)
+          writeJson(COMPARE_CACHE_KEY, fresh)
           setStats(new Map(((d.stats ?? []) as PriceStats[]).map(st => [st.canonical, st])))
         })
-        .catch(() => { if (!ctrl.signal.aborted) setDeals([]) }), 200)
+        // offline or server trouble: keep the last prices rather than claiming "no deal"
+        .catch(() => { if (!ctrl.signal.aborted) setDeals(cur => cur ?? []) }), 200)
     return () => { clearTimeout(t); ctrl.abort() }
   }, [fetchKey, storeSlugs])
 
@@ -99,6 +109,14 @@ export function ListView({ code, storeSlugs, stores, home }: {
   const route = useMemo(() => plan?.stops ?? [], [plan])
 
   // ---- mutations: optimistic locally, then the server (or local storage) ----
+  async function sync(method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>): Promise<boolean> {
+    const ok = await fetch('/api/list', {
+      method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, ...body }),
+    }).then(r => r.ok, () => false)
+    setSyncError(!ok)
+    return ok
+  }
+
   async function add() {
     const parsed = parseItem(draft)
     if (!parsed.text) return
@@ -106,8 +124,8 @@ export function ListView({ code, storeSlugs, stores, home }: {
     const item: ListItem = { text: parsed.text, qty: parsed.qty, unit: parsed.unit }
     if (code) {
       setItems(cur => cur.some(i => i.text.toLowerCase() === item.text.toLowerCase()) ? cur : [...cur, item])
-      await fetch('/api/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, ...item }) })
-      refetchShared(code)
+      // on failure keep the optimistic item visible; a refetch would silently drop it
+      if (await sync('POST', { ...item })) refetchShared(code)
     } else {
       setItems(addListItem(item))
     }
@@ -116,8 +134,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
   function change(text: string, patch: Partial<ListItem>) {
     if (code) {
       setItems(cur => cur.map(i => (i.text === text ? { ...i, ...patch } : i)))
-      fetch('/api/list', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, text, ...patch }) })
-        .catch(() => {})
+      sync('PATCH', { text, ...patch })
     } else {
       setItems(updateListItem(text, patch))
     }
@@ -126,7 +143,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
   async function remove(text: string) {
     if (code) {
       setItems(cur => cur.filter(i => i.text !== text))
-      await fetch('/api/list', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, text }) })
+      if (!(await sync('DELETE', { text }))) refetchShared(code)
     } else {
       setItems(removeListItem(text))
     }
@@ -162,7 +179,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setItems(cur => cur.filter(i => !i.checked))
-        await fetch('/api/list', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, checked: true }) })
+        await sync('DELETE', { checked: true })
       } else {
         setItems(removeListItems(done.map(i => i.text)))
       }
@@ -227,6 +244,9 @@ export function ListView({ code, storeSlugs, stores, home }: {
           </>
         )}
       </div>
+      {code && syncError && (
+        <div className="text-xs text-amber-400" role="status">⚠️ Couldn&apos;t sync your list — check your connection. Changes may not reach your other devices.</div>
+      )}
       {tripState === 'done' && <div className="text-sm text-emerald-400" role="status">✓ Trip saved — see it under Savings.</div>}
 
       {items.length === 0 ? (
