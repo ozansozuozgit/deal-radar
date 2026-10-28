@@ -24,7 +24,14 @@ export async function currentPushStatus(): Promise<PushStatus> {
   } catch { return 'unsupported' }
 }
 
-export async function enablePush(): Promise<PushStatus> {
+function saveSubscription(sub: PushSubscription, listCode: string | null) {
+  return fetch('/api/push', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: getDeviceId(), subscription: sub.toJSON(), listCode }),
+  })
+}
+
+export async function enablePush(listCode: string | null): Promise<PushStatus> {
   if (!VAPID_KEY || !('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
   try {
     const permission = await Notification.requestPermission()
@@ -35,10 +42,7 @@ export async function enablePush(): Promise<PushStatus> {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_KEY),
     })
-    const res = await fetch('/api/push', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId: getDeviceId(), subscription: sub.toJSON() }),
-    })
+    const res = await saveSubscription(sub, listCode)
     // a browser subscription the server doesn't know about would never get alerts
     if (!res.ok) { await sub.unsubscribe().catch(() => {}); return 'error' }
     return 'subscribed'
@@ -46,6 +50,16 @@ export async function enablePush(): Promise<PushStatus> {
     console.error('[push] enable failed:', e)
     return 'error'
   }
+}
+
+/** Tie an existing subscription to the list code, so shared watches reach this device. */
+export async function linkPush(listCode: string): Promise<void> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = await reg?.pushManager.getSubscription()
+    if (sub) await saveSubscription(sub, listCode)
+  } catch { /* best-effort; alerts still reach this device's own watches */ }
 }
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {

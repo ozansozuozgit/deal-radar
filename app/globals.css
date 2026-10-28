@@ -38,3 +38,6 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* trip map: dark backdrop while tiles load, matching the dark basemap */
+.leaflet-container { background: #171717; font-family: inherit; }

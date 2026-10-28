@@ -11,8 +11,11 @@ export interface DealRecord {
   merchant_slug: string; merchant_name: string; merchant_logo?: string | null
   distance_miles: number | null
   valid_from: string | null; valid_to: string | null; discount_pct: number | null
-  unit_price?: number | null; size_unit?: string | null
+  unit_price?: number | null; size_qty?: number | null; size_unit?: string | null
   hist_min_price?: number | null; hist_weeks?: number | null
+  canonical?: string | null; normalized_name?: string
+  cmp_price?: number | null; cmp_basis?: string | null
+  typical_price?: number | null; price_verdict?: string | null
 }
 
 export function isHistoricalLow(deal: DealRecord): boolean {
@@ -45,6 +48,10 @@ export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => 
       <div className="flex items-center gap-2 flex-wrap empty:hidden">
         {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
           <span className="text-[11px] text-neutral-500">${deal.unit_price.toFixed(2)}/{deal.size_unit}</span>}
+        {deal.price_verdict === 'great' &&
+          <span className="text-[11px] bg-sky-900/50 text-sky-300 rounded px-1.5 py-0.5" title="Cheaper than most sales on this around here">💎 great price</span>}
+        {deal.price_verdict === 'weak' &&
+          <span className="text-[11px] text-neutral-500" title="Usually goes on sale for less">meh sale</span>}
         {isHistoricalLow(deal) &&
           <span className="text-[11px] bg-amber-900/50 text-amber-300 rounded px-1.5 py-0.5">🏷️ lowest in {deal.hist_weeks}w</span>}
       </div>

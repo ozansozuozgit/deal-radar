@@ -68,7 +68,13 @@ self.addEventListener('notificationclick', event => {
   event.notification.close()
   const url = (event.notification.data && event.notification.data.url) || '/'
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    for (const c of list) { if ('focus' in c) return c.focus() }
+    // an open app gets told what to show (e.g. the alerted deal); otherwise open it there
+    for (const c of list) {
+      if ('focus' in c) {
+        c.postMessage({ type: 'open', url })
+        return c.focus()
+      }
+    }
     return clients.openWindow(url)
   }))
 })

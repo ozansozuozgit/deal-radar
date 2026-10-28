@@ -3,6 +3,7 @@ import { readJson, writeJson } from './storage'
 export interface Prefs {
   address: string; lat: number; lng: number; zip: string
   radiusMiles: number; enabledStores: string[] | null  // null = all
+  label?: string                                       // saved place name, e.g. "Home"
 }
 
 export const PREFS_KEY = 'deal-radar-prefs-v1'
@@ -22,6 +23,7 @@ export function parsePrefs(raw: unknown): Prefs | null {
     radiusMiles: radius != null && radius > 0 && radius <= 50 ? radius : 1.5,
     enabledStores: Array.isArray(p.enabledStores) && p.enabledStores.length
       && p.enabledStores.every(s => typeof s === 'string') ? p.enabledStores as string[] : null,
+    ...(typeof p.label === 'string' && p.label.trim() ? { label: p.label.trim().slice(0, 40) } : {}),
   }
 }
 

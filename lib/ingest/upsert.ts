@@ -1,5 +1,6 @@
 import { normalizeName } from '@/lib/parse/normalize'
-import { parseSize, unitPrice } from '@/lib/parse/size'
+import { canonicalize } from '@/lib/parse/canonical'
+import { parseSize, unitPrice, type Size } from '@/lib/parse/size'
 import type { DealInput, FlyerInput } from '@/lib/types'
 
 export function flyerRow(f: FlyerInput) {
@@ -11,6 +12,16 @@ export function flyerRow(f: FlyerInput) {
   }
 }
 
+/** A price that compares across package sizes: per lb for weights, per item for counts. */
+export function comparablePrice(price: number | null | undefined, size: Size | null): { cmp_price: number | null; cmp_basis: string | null } {
+  if (price == null || price <= 0) return { cmp_price: null, cmp_basis: null }
+  const r = (n: number) => Math.round(n * 100) / 100
+  if (size?.unit === 'lb') return { cmp_price: r(price / size.qty), cmp_basis: 'lb' }
+  if (size?.unit === 'oz') return { cmp_price: r((price / size.qty) * 16), cmp_basis: 'lb' }
+  if (size?.unit === 'ct') return { cmp_price: r(price / size.qty), cmp_basis: 'ct' }
+  return { cmp_price: price, cmp_basis: 'ea' }
+}
+
 export function dealRow(d: DealInput, flyerId: number) {
   // per-lb deals ARE unit-priced already; otherwise parse a package size
   const size = d.unit === 'lb'
@@ -20,6 +31,9 @@ export function dealRow(d: DealInput, flyerId: number) {
     size_qty: size?.qty ?? null,
     size_unit: size?.unit ?? null,
     unit_price: unitPrice(d.price ?? null, size),
+    ...comparablePrice(d.price, size),
+    // the dictionary's answer; ingest fills the rest from the Gemini cache afterwards
+    canonical: canonicalize(d.name),
     flyer_id: flyerId, source: d.source, external_id: d.externalId,
     merchant_slug: d.merchantSlug, name: d.name,
     normalized_name: normalizeName(d.name),

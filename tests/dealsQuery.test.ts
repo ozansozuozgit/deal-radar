@@ -3,13 +3,17 @@ import { ilikeAny, parseDealsParams, sanitizeSearch } from '@/lib/api/dealsQuery
 
 test('defaults', () => {
   expect(parseDealsParams(new URLSearchParams())).toEqual({
-    q: null, stores: null, category: null, status: 'active', sort: 'discount', limit: 200,
+    q: null, stores: null, category: null, status: 'active', sort: 'discount', limit: 200, ids: null,
   })
 })
 
 test('parses and clamps', () => {
   const p = parseDealsParams(new URLSearchParams('q=chicken&stores=aldi,fairway&category=meat&status=upcoming&sort=price&limit=9999'))
-  expect(p).toEqual({ q: 'chicken', stores: ['aldi', 'fairway'], category: 'meat', status: 'upcoming', sort: 'price', limit: 500 })
+  expect(p).toEqual({ q: 'chicken', stores: ['aldi', 'fairway'], category: 'meat', status: 'upcoming', sort: 'price', limit: 500, ids: null })
+})
+
+test('ids pick specific deals', () => {
+  expect(parseDealsParams(new URLSearchParams('ids=12,x,7,-1')).ids).toEqual([12, 7])
 })
 
 test('search terms are kept literally, only trimmed and capped', () => {
