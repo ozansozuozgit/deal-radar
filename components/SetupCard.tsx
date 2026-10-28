@@ -21,6 +21,7 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
   const picked = useRef<Suggestion | null>(initial ? { label: initial.address, lat: initial.lat, lng: initial.lng, zip: initial.zip } : null)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestQuery = useRef('')
+  const suggestionsFor = useRef('') // the text the current dropdown results were fetched for
 
   useEffect(() => () => { if (debounce.current) clearTimeout(debounce.current) }, [])
 
@@ -36,6 +37,7 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(value)}`)
         const { suggestions } = await res.json()
         if (latestQuery.current !== value) return // a newer keystroke's results own the dropdown
+        suggestionsFor.current = value
         setSuggestions(suggestions ?? [])
         setOpen((suggestions ?? []).length > 0)
         setHighlight(0)
@@ -80,8 +82,8 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
         const body = await res.json().catch(() => ({}))
         if (res.ok && Number.isFinite(body.lat) && Number.isFinite(body.lng)) {
           s = { label: address, lat: body.lat, lng: body.lng, zip: body.zip ?? null }
-        } else if (suggestions[0]) {
-          s = suggestions[0] // the dropdown already found something close; better than failing
+        } else if (suggestions[0] && suggestionsFor.current === address) {
+          s = suggestions[0] // results for exactly this text found something close; better than failing
         } else {
           throw new Error(res.status === 404 ? 'Couldn’t find that address — try adding the city and state, or pick a suggestion' : 'Address lookup is having trouble — try again or use your location')
         }

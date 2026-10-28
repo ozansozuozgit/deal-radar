@@ -16,6 +16,7 @@ import type { DinnerIdea } from '@/lib/dinner'
 interface Meta {
   stores: Array<{ slug: string; name: string; distance_miles: number | null; logo_url: string | null; deal_count: number }>
   freshness: Array<{ source: string; finished_at: string; deal_count: number; error: string | null }>
+  lastSuccess: string | null
 }
 
 const CATEGORIES: Array<[string, string]> = [
@@ -60,8 +61,12 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   }, [])
   useEffect(() => {
     fetch('/api/meta').then(r => r.json())
-      .then(d => setMeta({ stores: Array.isArray(d?.stores) ? d.stores : [], freshness: Array.isArray(d?.freshness) ? d.freshness : [] }))
-      .catch(() => setMeta({ stores: [], freshness: [] }))
+      .then(d => setMeta({
+        stores: Array.isArray(d?.stores) ? d.stores : [],
+        freshness: Array.isArray(d?.freshness) ? d.freshness : [],
+        lastSuccess: typeof d?.lastSuccess === 'string' ? d.lastSuccess : null,
+      }))
+      .catch(() => setMeta({ stores: [], freshness: [], lastSuccess: null }))
   }, [])
 
   const inRadius = useMemo(() =>
@@ -121,9 +126,9 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
 
   const online = useOnline()
   // the daily scan runs at ~6am; if the newest successful run is much older, it's failing
-  const lastGood = (meta?.freshness ?? []).filter(f => !f.error && f.finished_at)
-    .reduce<string | null>((best, f) => (!best || f.finished_at > best ? f.finished_at : best), null)
-  const stale = (hoursSince(lastGood) ?? 0) > 36
+  const lastGood = meta?.lastSuccess ?? null
+  const allFailing = !!meta?.freshness.length && meta.freshness.every(f => f.error)
+  const stale = (hoursSince(lastGood) ?? 0) > 36 || (allFailing && !lastGood)
 
   const hasFilters = !!q.trim() || !!storeSel || !!catSel || upcoming
   function clearFilters() { setQ(''); setStoreSel(null); setCatSel(null); setUpcoming(false) }
@@ -229,7 +234,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
       )}
       {online && stale && (
         <div className="mt-3 rounded-xl border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200" role="status">
-          ⚠️ Deals were last updated {timeAgo(lastGood)} — the daily scan may be failing, so some may have ended.
+          ⚠️ {lastGood ? <>Deals were last updated {timeAgo(lastGood)}</> : <>The latest deal scans all failed</>} — the daily scan may be failing, so some may have ended.
         </div>
       )}
 
