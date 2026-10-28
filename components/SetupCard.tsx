@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { savePrefs, type Prefs } from '@/lib/client/prefs'
+import { loadPrefs, savePrefs, type Prefs } from '@/lib/client/prefs'
 
 interface Suggestion { label: string; lat: number; lng: number; zip: string | null }
 
@@ -72,11 +72,13 @@ export function SetupCard({ initial, onDone }: { initial: Prefs | null; onDone: 
         const { lat, lng, zip } = await res.json()
         s = { label: address, lat, lng, zip }
       }
+      const saved = loadPrefs()
       const prefs: Prefs = {
         address: s.label, lat: s.lat, lng: s.lng,
         zip: s.zip ?? '10001', radiusMiles: radius,
-        // keep store picks unless the location itself changed
-        enabledStores: initial && initial.lat === s.lat && initial.lng === s.lng ? initial.enabledStores : null,
+        // keep store picks unless the location itself changed; read them fresh, since
+        // the feed saves chip changes to storage without updating `initial`
+        enabledStores: saved && saved.lat === s.lat && saved.lng === s.lng ? saved.enabledStores : null,
       }
       savePrefs(prefs); onDone(prefs)
     } catch (e) { setError(e instanceof Error ? e.message : 'Something went wrong') }
