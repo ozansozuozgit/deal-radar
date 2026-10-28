@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
-  const { deviceId, subscription } = await req.json().catch(() => ({}))
+  const { deviceId, subscription, listCode } = await req.json().catch(() => ({}))
   if (!deviceId || !subscription?.endpoint) return NextResponse.json({ error: 'deviceId and subscription required' }, { status: 400 })
   const db = getServiceClient()
   const { error } = await db.from('push_subscriptions')
-    .upsert({ device_id: String(deviceId), subscription }, { onConflict: 'device_id' })
+    .upsert({
+      device_id: String(deviceId), subscription,
+      list_code: typeof listCode === 'string' && listCode ? listCode.toUpperCase() : null,
+    }, { onConflict: 'device_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

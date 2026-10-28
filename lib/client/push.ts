@@ -10,7 +10,14 @@ export async function currentPushStatus(): Promise<PushStatus> {
   return sub ? 'subscribed' : 'idle'
 }
 
-export async function enablePush(): Promise<PushStatus> {
+function saveSubscription(sub: PushSubscription, listCode: string | null) {
+  return fetch('/api/push', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: getDeviceId(), subscription: sub.toJSON(), listCode }),
+  })
+}
+
+export async function enablePush(listCode: string | null): Promise<PushStatus> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return 'denied'
@@ -22,11 +29,16 @@ export async function enablePush(): Promise<PushStatus> {
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(key),
   })
-  await fetch('/api/push', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceId: getDeviceId(), subscription: sub.toJSON() }),
-  })
+  await saveSubscription(sub, listCode)
   return 'subscribed'
+}
+
+/** Tie an existing subscription to the list code, so shared watches reach this device. */
+export async function linkPush(listCode: string): Promise<void> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+  const reg = await navigator.serviceWorker.getRegistration()
+  const sub = await reg?.pushManager.getSubscription()
+  if (sub) await saveSubscription(sub, listCode).catch(() => {})
 }
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {

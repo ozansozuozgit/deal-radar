@@ -24,7 +24,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
   deal: DealRecord
   onClose: () => void
   onWatch: (term: string) => void
-  onAddToList: (text: string) => void
+  onAddToList: (deal: DealRecord) => void
 }) {
   const name = (deal as unknown as { normalized_name?: string }).normalized_name
   const [fetched, setFetched] = useState<HistoryPoint[] | null>(null)
@@ -140,7 +140,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
             className="rounded-xl border border-neutral-700 py-3 text-sm hover:bg-neutral-800 transition-colors">
             {done === 'watch' ? '✓ Watching' : '👀 Watch this item'}
           </button>
-          <button onClick={() => { onAddToList(deal.name); setDone('list') }}
+          <button onClick={() => { onAddToList(deal); setDone('list') }}
             className="rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 text-sm font-medium transition-colors">
             {done === 'list' ? '✓ On your list' : '🛒 Add to list'}
           </button>

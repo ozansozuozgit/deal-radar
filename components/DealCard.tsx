@@ -10,7 +10,7 @@ export interface DealRecord {
   merchant_slug: string; merchant_name: string; merchant_logo?: string | null
   distance_miles: number | null
   valid_from: string | null; valid_to: string | null; discount_pct: number | null
-  unit_price?: number | null; size_unit?: string | null
+  unit_price?: number | null; size_qty?: number | null; size_unit?: string | null
   hist_min_price?: number | null; hist_weeks?: number | null
 }
 

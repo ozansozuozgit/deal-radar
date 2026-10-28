@@ -5,9 +5,13 @@ import { Chips } from './Chips'
 import { SkeletonCards } from './Skeleton'
 import { DealSheet } from './DealSheet'
 import { ListView } from './ListView'
-import { addWatch, loadWatches, removeWatch, type Watch } from '@/lib/client/watches'
-import { addListItem } from '@/lib/client/list'
-import { currentPushStatus, enablePush, type PushStatus } from '@/lib/client/push'
+import { SavingsView } from './SavingsView'
+import { WatchChips } from './WatchChips'
+import { addWatch, loadWatches, removeWatch, syncWatches, updateWatch, watchOwner, type PriceBasis, type Watch } from '@/lib/client/watches'
+import { addToActiveList } from '@/lib/client/list'
+import { createCode, initialCode } from '@/lib/client/sync'
+import { currentPushStatus, enablePush, linkPush, type PushStatus } from '@/lib/client/push'
+import { pricePerLb } from '@/lib/compare'
 import { savePrefs, type Prefs } from '@/lib/client/prefs'
 import { timeAgo } from '@/lib/dates'
 
@@ -18,7 +22,10 @@ interface DinnerIdea {
 }
 
 interface Meta {
-  stores: Array<{ slug: string; name: string; distance_miles: number | null; logo_url: string | null; deal_count: number }>
+  stores: Array<{
+    slug: string; name: string; distance_miles: number | null; logo_url: string | null; deal_count: number
+    lat: number | null; lng: number | null
+  }>
   freshness: Array<{ source: string; finished_at: string; deal_count: number; error: string | null }>
 }
 
@@ -34,11 +41,24 @@ const SORTS = [
 ]
 const DEALS_LIMIT = 200
 const DEALS_MAX = 500 // /api/deals clamps here
+type Tab = 'deals' | 'list' | 'savings'
+const TABS: Array<[Tab, string]> = [['deals', 'Deals'], ['list', 'My list'], ['savings', 'Savings']]
+
+/** Does a deal meet a watch's target price, if it has one? */
+function meetsWatch(w: Watch, d: DealRecord): boolean {
+  if (d.price == null) return false
+  if (w.maxPrice == null) return true
+  if (w.basis === 'lb') { const perLb = pricePerLb(d); return perLb != null && perLb <= w.maxPrice }
+  return d.price <= w.maxPrice
+}
 
 interface Results { key: string; baseKey: string; deals: DealRecord[]; error: boolean }
 
 export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => void }) {
-  const [tab, setTab] = useState<'deals' | 'list'>('deals')
+  const [tab, setTab] = useState<Tab>('deals')
+  // the list code syncs list, watches and purchases across devices; every browser gets one
+  const [code, setCode] = useState<string | null>(initialCode)
+  useEffect(() => { if (!code) createCode().then(c => { if (c) setCode(c) }) }, [code])
   const [meta, setMeta] = useState<Meta | null>(null)
   // results are tagged with the query that produced them, so a stale response is
   // never shown for newer filters and "loading" is simply "results don't match yet"
@@ -59,10 +79,44 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   const [dinnerOpen, setDinnerOpen] = useState(true)
 
   useEffect(() => { currentPushStatus().then(setPushStatus) }, [])
+  const owner = useMemo(() => watchOwner(code), [code])
+  useEffect(() => {
+    if (!code) return
+    syncWatches(code).then(setWatches).catch(() => {})
+    linkPush(code)
+  }, [code])
   useEffect(() => {
     fetch('/api/dinner').then(r => r.json()).then(d => setDinner(d.ideas ?? [])).catch(() => {})
   }, [])
-  useEffect(() => { fetch('/api/meta').then(r => r.json()).then(setMeta).catch(() => setMeta({ stores: [], freshness: [] })) }, [])
+  useEffect(() => {
+    fetch(`/api/meta?lat=${prefs.lat}&lng=${prefs.lng}`).then(r => r.json()).then(setMeta)
+      .catch(() => setMeta({ stores: [], freshness: [] }))
+  }, [prefs.lat, prefs.lng])
+  const home = useMemo(() => ({ lat: prefs.lat, lng: prefs.lng }), [prefs.lat, prefs.lng])
+  const distanceBySlug = useMemo(() => new Map((meta?.stores ?? []).map(s => [s.slug, s.distance_miles])), [meta])
+
+  // open a specific deal: from a notification (?deal=ID) or the alerts list
+  const openDealById = useCallback((id: number) => {
+    fetch(`/api/deals?ids=${id}`).then(r => (r.ok ? r.json() : null))
+      .then(d => { const deal = d?.deals?.[0]; if (deal) setSelected(deal) }).catch(() => {})
+  }, [])
+  const openUrl = useCallback((raw: string) => {
+    const url = new URL(raw, window.location.origin)
+    const id = Number(url.searchParams.get('deal'))
+    if (Number.isInteger(id) && id > 0) { setTab('deals'); openDealById(id) }
+  }, [openDealById])
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const id = Number(url.searchParams.get('deal'))
+    if (url.searchParams.has('deal')) {
+      if (Number.isInteger(id) && id > 0) openDealById(id) // the feed tab is already showing
+      url.searchParams.delete('deal')
+      window.history.replaceState({}, '', url.toString())
+    }
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'open' && typeof e.data.url === 'string') openUrl(e.data.url) }
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage)
+  }, [openUrl, openDealById])
 
   const inRadius = useMemo(() =>
     (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles),
@@ -90,7 +144,10 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   // while loading more, keep showing what we have instead of flashing skeletons
   const loadingMore = loading && results?.baseKey === baseKey && !results.error
   const failed = !loading && !!results?.error
-  const deals = useMemo(() => (results && (!loading || loadingMore) ? results.deals : []), [results, loading, loadingMore])
+  // distances are from where you are, not from where the daily scan runs
+  const deals = useMemo(() => (results && (!loading || loadingMore) ? results.deals : [])
+    .map(d => (distanceBySlug.has(d.merchant_slug) ? { ...d, distance_miles: distanceBySlug.get(d.merchant_slug) ?? null } : d)),
+  [results, loading, loadingMore, distanceBySlug])
   const canShowMore = !loading && !failed && deals.length === limit && limit < DEALS_MAX
 
   useEffect(() => {
@@ -128,18 +185,20 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     const stores = inRadius.map(s => s.slug).join(',')
     let cancelled = false
     Promise.all(watches.map(async w => {
-      const params = new URLSearchParams({ q: w.term, sort: 'price', limit: '5', status: 'active' })
+      const params = new URLSearchParams({ q: w.term, sort: 'price', limit: '20', status: 'active' })
       if (stores) params.set('stores', stores)
       const d = await fetch(`/api/deals?${params}`).then(r => r.json()).catch(() => ({ deals: [] }))
-      const hit = (d.deals as DealRecord[] | undefined)?.find(x =>
-        x.price != null && (w.maxPrice == null || x.price <= w.maxPrice)) ?? null
+      const hit = (d.deals as DealRecord[] | undefined)?.find(x => meetsWatch(w, x)) ?? null
       return [w.term, hit] as const
     })).then(entries => { if (!cancelled) setWatchHits(new Map(entries)) })
     return () => { cancelled = true }
   }, [watches, meta, inRadius])
 
-  const doWatch = useCallback((term: string) => setWatches(addWatch(term)), [])
-  const doAddToList = useCallback((text: string) => { addListItem(text) }, [])
+  const doWatch = useCallback((term: string) => setWatches(addWatch(term, owner)), [owner])
+  // adding from a deal pins that exact deal, so the list prices what you looked at
+  const doAddToList = useCallback((deal: DealRecord) => {
+    addToActiveList(code, { text: deal.name, qty: 1, pinnedDealId: deal.id })
+  }, [code])
 
   const [refreshState, setRefreshState] = useState<'idle' | 'busy' | 'done' | 'running' | 'cooldown' | 'error'>('idle')
   async function refreshNow() {
@@ -156,10 +215,10 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
       <div className="sticky top-0 z-10 bg-neutral-950/95 backdrop-blur pt-4 pb-2 flex flex-col gap-2">
         <div className="flex gap-2 items-center">
           <div className="flex rounded-xl bg-neutral-900 p-1 text-sm">
-            <button onClick={() => setTab('deals')} aria-pressed={tab === 'deals'}
-              className={`px-3 py-1.5 rounded-lg ${tab === 'deals' ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>Deals</button>
-            <button onClick={() => setTab('list')} aria-pressed={tab === 'list'}
-              className={`px-3 py-1.5 rounded-lg ${tab === 'list' ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>My list</button>
+            {TABS.map(([value, label]) => (
+              <button key={value} onClick={() => setTab(value)} aria-pressed={tab === value}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg whitespace-nowrap ${tab === value ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>{label}</button>
+            ))}
           </div>
           <div className="flex-1" />
           <button onClick={onOpenSetup} aria-label="Settings"
@@ -208,42 +267,15 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
         )}
       </div>
 
-      {tab === 'list' ? <ListView storeSlugs={inRadiusSlugs} /> : (
+      {tab === 'list' ? <ListView key={code ?? 'local'} code={code} storeSlugs={inRadiusSlugs} stores={inRadius} home={home} />
+        : tab === 'savings' ? <SavingsView code={code} /> : (
         <>
           {watches.length > 0 && (
-            <div className="mt-3">
-              <div className="flex items-center gap-3 mb-1.5">
-                <div className="text-xs uppercase tracking-wide text-neutral-500">👀 Watching</div>
-                {pushStatus === 'idle' && (
-                  <button onClick={() => enablePush().then(setPushStatus)}
-                    className="text-xs rounded-lg border border-neutral-700 px-2 py-0.5 text-neutral-300 hover:bg-neutral-800">
-                    🔔 Notify me when these go on sale
-                  </button>
-                )}
-                {pushStatus === 'subscribed' && <span className="text-xs text-emerald-500">🔔 alerts on</span>}
-                {pushStatus === 'denied' && <span className="text-xs text-neutral-600">notifications blocked in browser settings</span>}
-              </div>
-              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none">
-                {watches.map(w => {
-                  const hit = watchHits.get(w.term)
-                  return (
-                    <div key={w.term}
-                      className={`shrink-0 rounded-xl px-3 py-2 text-xs border ${hit ? 'border-emerald-700 bg-emerald-950/40' : 'border-neutral-800 bg-neutral-900'}`}>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => hit && setSelected(hit)} className="text-left">
-                          <div className="font-medium">{w.term}</div>
-                          {hit
-                            ? <div className="text-emerald-400">${hit.price!.toFixed(2)} at {hit.merchant_name}</div>
-                            : <div className="text-neutral-500">no deal this week</div>}
-                        </button>
-                        <button onClick={() => setWatches(removeWatch(w.term))} aria-label={`Stop watching ${w.term}`}
-                          className="text-neutral-600 hover:text-red-400">×</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            <WatchChips watches={watches} hits={watchHits} pushStatus={pushStatus}
+              onEnablePush={() => enablePush(code).then(setPushStatus)}
+              onUpdate={(term, patch: { maxPrice: number | null; basis: PriceBasis }) => setWatches(updateWatch(term, owner, patch))}
+              onRemove={term => setWatches(removeWatch(term, owner))}
+              onOpen={setSelected} onOpenUrl={openUrl} />
           )}
 
           {dinner.length > 0 && !q && (

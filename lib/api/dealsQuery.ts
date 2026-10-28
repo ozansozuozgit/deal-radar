@@ -1,6 +1,7 @@
 export interface DealsParams {
   q: string | null; stores: string[] | null; category: string | null
   status: 'active' | 'upcoming'; sort: 'discount' | 'price' | 'ending'; limit: number
+  ids: number[] | null   // fetch specific deals (e.g. from a notification), whatever their dates
 }
 
 /** Trim, collapse whitespace, cap length. `*` is PostgREST's alias for `%`, so drop it. */
@@ -26,11 +27,13 @@ export function parseDealsParams(sp: URLSearchParams): DealsParams {
   const sortParam = sp.get('sort')
   const sort = sortParam === 'price' ? 'price' : sortParam === 'ending' ? 'ending' : 'discount'
   const limit = Math.min(Math.max(Number(sp.get('limit')) || 200, 1), 500)
+  const ids = sp.get('ids')?.split(',').map(Number).filter(n => Number.isInteger(n) && n > 0).slice(0, 100) ?? null
   const stores = sp.get('stores')?.split(',').map(s => s.trim()).filter(Boolean) ?? null
   return {
     q: sanitizeSearch(sp.get('q')),
     stores: stores?.length ? stores : null,
     category: sp.get('category')?.trim() || null,
     status, sort, limit,
+    ids: ids?.length ? ids : null,
   }
 }

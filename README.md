@@ -23,10 +23,20 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
   recurring fake "sales" don't
 - 🔢 **Multi-buy done right** — "4/$1" means $0.25 each, not $1 (Flipp's feed drops the
   prefix; we re-fetch item details for nearby stores to get the truth)
-- 🧾 **Shopping list comparison** — best single store, best two-store split, per-item best
-  prices; shareable via a 6-char code so the whole household edits one list
-- 👀 **Watches + push notifications** — watch "chicken breast" and your phone buzzes the
-  morning it goes on sale (Web Push, works as an installed PWA on iOS)
+- 🧾 **Shopping list that knows quantities** — type "2 lb chicken breast" and stores are
+  compared on what that amount actually costs (per-lb pricing, whole packages); pin the exact
+  deal you want or hide wrong matches; see what you save vs regular price
+- 🗺️ **Trip planner** — one-store, two-store and cheapest-per-item plans with walking time
+  and a map; the ★ pick weighs price against your time
+- 🛒 **In-store mode** — the list grouped by store with big checkboxes; "Finish trip" logs
+  what you bought
+- 💰 **Savings tracker** — monthly spend and savings, by category and store, plus habits
+  like "milk 3× at C Town, never on sale"
+- 🔄 **Synced everywhere** — every browser gets a 6-char code; open the link on another
+  device (or share it with the household) and list, watches and purchases follow
+- 👀 **Watches + push notifications** — watch "chicken breast", optionally "under $2.50/lb",
+  and your phone buzzes the morning it hits that price; tapping opens that exact deal
+  (Web Push, works as an installed PWA on iOS)
 - 🍳 **Dinner ideas from this week's deals** — three weeknight recipes generated from what's
   actually on sale, with ingredient→deal chips and estimated cost (optional, Gemini free tier)
 - 📈 **Price history sparklines**, deal detail sheets with links to the source flyer,
