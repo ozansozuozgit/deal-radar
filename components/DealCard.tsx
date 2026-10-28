@@ -2,6 +2,8 @@ import type { CropRect } from '@/lib/types'
 import { FlyerCrop } from './FlyerCrop'
 import { Img, NoImage } from './Img'
 import { daysLeft as daysUntil } from '@/lib/dates'
+import { dealSignal, usualPrice } from '@/lib/history'
+import { Price } from './Price'
 
 export interface DealRecord {
   id: number; name: string; description: string | null
@@ -18,51 +20,50 @@ export interface DealRecord {
   typical_price?: number | null; price_verdict?: string | null
 }
 
-export function isHistoricalLow(deal: DealRecord): boolean {
-  return deal.price != null && deal.hist_min_price != null
-    && (deal.hist_weeks ?? 0) >= 4 && deal.price <= deal.hist_min_price
-}
+export { isHistoricalLow } from '@/lib/history'
 
-export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => void }) {
+export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord; onClick?: () => void; compact?: boolean }) {
   const daysLeft = daysUntil(deal.valid_to)
+  const signal = dealSignal(deal)
+  const usual = usualPrice(deal)
+  const was = deal.original_price != null && deal.price != null && deal.original_price > deal.price ? deal.original_price : null
   return (
     <button onClick={onClick}
-      className="text-left rounded-xl bg-neutral-900 p-3 flex flex-col gap-2 hover:bg-neutral-800/80 active:scale-[0.98] transition">
-      {deal.crop ? <FlyerCrop crop={deal.crop} alt={deal.name} />
-        : <Img src={deal.image_url} alt="" loading="lazy" className="w-full aspect-square object-contain rounded-lg bg-white" fallback={<NoImage />} />}
-      <div className="text-sm font-medium leading-tight line-clamp-2">{deal.name}</div>
-      {deal.description && <div className="text-xs text-neutral-400 line-clamp-1">{deal.description}</div>}
-      <div className="mt-auto flex items-baseline gap-2 flex-wrap">
+      className="group h-full w-full text-left rounded-xl bg-card border border-line p-2 flex flex-col gap-1.5 hover:border-neutral-600 hover:shadow-md hover:shadow-black/5 active:scale-[0.98] transition">
+      <div className={`relative w-full ${compact ? 'aspect-[16/10]' : 'aspect-[4/3]'} rounded-lg bg-tile overflow-hidden p-1.5`}>
+        {deal.crop ? <FlyerCrop crop={deal.crop} alt={deal.name} boxRatio={compact ? 1.6 : 4 / 3} />
+          : <Img src={deal.image_url} alt="" loading="lazy" className="w-full h-full object-contain mix-blend-multiply" fallback={<NoImage />} />}
+        {signal && (
+          <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-ink text-tag px-1.5 py-0.5 text-[11px] font-bold leading-tight">
+            {signal.kind === 'low' ? `Lowest in ${signal.weeks} wks` : 'Great price'}
+          </span>
+        )}
+      </div>
+      <div className={`font-bold leading-snug line-clamp-2 ${compact ? 'text-[13px]' : 'text-sm'}`}>{deal.name}</div>
+      {!compact && deal.description && <div className="text-xs text-neutral-500 line-clamp-1 -mt-1">{deal.description}</div>}
+      <div className="mt-auto pt-0.5 flex items-end gap-x-1.5 gap-y-1 flex-wrap">
         {deal.price != null ? (
           <>
-            <span className="text-emerald-400 text-lg font-bold">${deal.price.toFixed(2)}{deal.unit ? `/${deal.unit}` : ''}</span>
-            {deal.original_price != null && deal.original_price > deal.price &&
-              <span className="text-neutral-500 line-through text-sm">${deal.original_price.toFixed(2)}</span>}
-            {deal.discount_pct != null && <span className="text-xs bg-emerald-900/60 text-emerald-300 rounded px-1.5 py-0.5">-{deal.discount_pct}%</span>}
-            {deal.price_text?.includes('/$') && <span className="text-xs text-neutral-400">{deal.price_text}</span>}
+            <Price value={deal.price} unit={deal.unit} size={compact ? 'sm' : 'md'} />
+            <span className="flex flex-col leading-tight text-xs">
+              {was != null && <span className="text-neutral-500 line-through">${was.toFixed(2)}</span>}
+              {usual != null ? <span className="text-save font-bold">usually ${usual.toFixed(2)}</span>
+                : deal.discount_pct != null ? <span className="text-save font-bold">−{deal.discount_pct}%</span> : null}
+            </span>
           </>
-        ) : deal.sale_story ? <span className="text-emerald-400 font-semibold text-sm">{deal.sale_story}</span>
-          : deal.price_text ? <span className="text-emerald-400 font-semibold text-sm">{deal.price_text}</span>
-          : null}
+        ) : (deal.sale_story ?? deal.price_text) ? (
+          <span className="bg-tag text-ink font-condensed font-extrabold rounded-[4px] px-1.5 py-0.5 text-base leading-tight">{deal.sale_story ?? deal.price_text}</span>
+        ) : null}
       </div>
-      <div className="flex items-center gap-2 flex-wrap empty:hidden">
-        {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
-          <span className="text-[11px] text-neutral-500">${deal.unit_price.toFixed(2)}/{deal.size_unit}</span>}
-        {deal.price_verdict === 'great' &&
-          <span className="text-[11px] bg-sky-900/50 text-sky-300 rounded px-1.5 py-0.5" title="Cheaper than most sales on this around here">💎 great price</span>}
-        {deal.price_verdict === 'weak' &&
-          <span className="text-[11px] text-neutral-500" title="Usually goes on sale for less">meh sale</span>}
-        {isHistoricalLow(deal) &&
-          <span className="text-[11px] bg-amber-900/50 text-amber-300 rounded px-1.5 py-0.5">🏷️ lowest in {deal.hist_weeks}w</span>}
-      </div>
-      {deal.prime_price != null && <div className="text-xs text-sky-300">${deal.prime_price.toFixed(2)} with Prime</div>}
-      <div className="flex items-center justify-between text-xs text-neutral-400 gap-1">
-        <span className="inline-flex items-center gap-1.5 min-w-0">
-          <Img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white shrink-0" />
-          <span className="truncate">{deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}</span>
-        </span>
-        {daysLeft != null && <span className={`shrink-0 ${daysLeft <= 1 ? 'text-amber-400' : ''}`}>{daysLeft === 0 ? 'ends today' : `${daysLeft}d left`}</span>}
-      </div>
+      {!compact && (
+        <div className="flex items-center justify-between text-xs text-neutral-500 gap-1">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <Img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white border border-line shrink-0" />
+            <span className="truncate">{deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}</span>
+          </span>
+          {daysLeft != null && <span className={`shrink-0 ${daysLeft <= 1 ? 'text-urgent font-bold' : ''}`}>{daysLeft === 0 ? 'Ends today' : daysLeft === 1 ? 'Ends tomorrow' : `${daysLeft}d left`}</span>}
+        </div>
+      )}
     </button>
   )
 }

@@ -28,7 +28,7 @@ export function MatchPicker({ item, pinnedDealId, onPin, onReject, onClose }: {
             <h2 className="font-semibold">Which “{item.text}”?</h2>
             <p className="text-xs text-neutral-500 mt-0.5">📌 Use one to always pick it. ✕ hides a wrong match for this item.</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 text-neutral-400 hover:text-white">×</button>
+          <button onClick={onClose} aria-label="Close" className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 text-neutral-400 hover:text-neutral-100">×</button>
         </div>
         {pinnedDealId != null && (
           <button onClick={() => onPin(null)} className="mt-3 text-xs text-sky-400 hover:text-sky-300">Unpin — go back to cheapest automatically</button>

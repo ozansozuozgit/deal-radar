@@ -7,7 +7,7 @@ interface Suggestion { label: string; lat: number; lng: number; zip: string | nu
 
 const FEATURES: Array<[string, string, string]> = [
   ['🛒', 'Every flyer, one feed', 'Whole Foods, Fairway, Aldi, Target and ~30 more stores near you — scanned automatically every morning.'],
-  ['💸', 'Real discounts, ranked', 'Sorted by actual % off with photos and prices, not marketing fluff. No PDFs, no page flipping.'],
+  ['💸', 'Best deals, judged by history', 'Ranked against what each item usually costs around you, so record lows rise to the top. No PDFs, no page flipping.'],
   ['🧾', 'Your list, priced out', 'Add your groceries and see which store — or two-store split — is cheapest this week.'],
 ]
 
@@ -124,8 +124,8 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
   return (
     <div className="relative min-h-screen w-full overflow-hidden flex items-center">
       {/* backdrop glows */}
-      <div aria-hidden className="pointer-events-none absolute -top-40 -left-40 w-[36rem] h-[36rem] rounded-full bg-emerald-600/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-48 -right-32 w-[32rem] h-[32rem] rounded-full bg-sky-600/10 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -top-40 -left-40 w-[36rem] h-[36rem] rounded-full bg-tag/30 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-48 -right-32 w-[32rem] h-[32rem] rounded-full bg-save/10 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.35]"
         style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
@@ -134,7 +134,7 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
         <div>
           <div className="inline-flex items-center gap-3">
             <span className="text-4xl">📡</span>
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Deal Radar</h1>
+            <h1 className="font-condensed text-5xl sm:text-6xl font-extrabold tracking-tight">Deal Radar</h1>
           </div>
           <p className="mt-4 text-lg sm:text-xl text-neutral-300 leading-relaxed max-w-lg">
             Every supermarket deal around you, in one beautiful feed —{' '}
@@ -158,7 +158,7 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
         </div>
 
         {/* form */}
-        <div className="rounded-3xl bg-neutral-900/80 backdrop-blur border border-neutral-800 p-7 sm:p-8 flex flex-col gap-5 shadow-2xl shadow-black/50">
+        <div className="rounded-3xl bg-neutral-900/80 backdrop-blur border border-neutral-800 p-7 sm:p-8 flex flex-col gap-5 shadow-2xl shadow-black/10">
           <div>
             <h2 className="text-lg font-semibold">Where do you shop?</h2>
             <p className="text-sm text-neutral-400 mt-0.5">We&apos;ll find every supermarket around this spot.</p>
@@ -211,7 +211,7 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
           </label>
           {error && <div className="text-sm text-red-400">{error}</div>}
           <button onClick={submit} disabled={busy || !address.trim()}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3.5 text-[15px] font-semibold disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-emerald-900/40">
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 text-[15px] font-semibold disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-black/20">
             {busy ? 'Locating…' : adding ? 'Save place →' : 'Show my deals →'}
           </button>
           {onCancel && (

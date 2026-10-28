@@ -77,7 +77,7 @@ export function SavingsView({ code }: { code: string | null }) {
               <li key={h.text}>
                 <b>{h.text}</b> {h.count}× at {h.stores.join(', ') || 'various stores'}
                 {h.onDeal === 0
-                  ? <span className="text-amber-300"> — never on sale; try watching it 👀</span>
+                  ? <span className="text-neutral-500"> — never on sale; try watching it</span>
                   : <span className="text-neutral-400"> — on sale {h.onDeal} of {h.count} times</span>}
               </li>
             ))}

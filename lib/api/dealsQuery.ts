@@ -1,6 +1,6 @@
 export interface DealsParams {
   q: string | null; stores: string[] | null; category: string | null
-  status: 'active' | 'upcoming'; sort: 'discount' | 'price' | 'ending'; limit: number
+  status: 'active' | 'upcoming'; sort: 'best' | 'discount' | 'price' | 'ending'; limit: number
   ids: number[] | null   // fetch specific deals (e.g. from a notification), whatever their dates
 }
 
@@ -25,7 +25,7 @@ export function ilikeAny(columns: string[], term: string): string {
 export function parseDealsParams(sp: URLSearchParams): DealsParams {
   const status = sp.get('status') === 'upcoming' ? 'upcoming' : 'active'
   const sortParam = sp.get('sort')
-  const sort = sortParam === 'price' ? 'price' : sortParam === 'ending' ? 'ending' : 'discount'
+  const sort = sortParam === 'best' || sortParam === 'price' || sortParam === 'ending' ? sortParam : 'discount'
   const limit = Math.min(Math.max(Number(sp.get('limit')) || 200, 1), 500)
   const ids = sp.get('ids')?.split(',').map(Number).filter(n => Number.isInteger(n) && n > 0).slice(0, 100) ?? null
   const stores = sp.get('stores')?.split(',').map(s => s.trim()).filter(Boolean) ?? null

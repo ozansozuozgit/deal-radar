@@ -16,7 +16,7 @@ export default function Error({ error, unstable_retry }: {
         <p className="text-sm text-neutral-400 mt-1">Your list and watches are safe on this device.</p>
         <div className="mt-5 flex flex-col gap-2">
           <button onClick={() => unstable_retry()}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 text-sm font-semibold">Try again</button>
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-sm font-semibold">Try again</button>
           <button onClick={() => { window.location.reload() }}
             className="rounded-xl border border-neutral-700 py-3 text-sm text-neutral-200 hover:bg-neutral-800">Reload the app</button>
           {/* last resort if saved settings are what's breaking it; keeps list and watches */}
