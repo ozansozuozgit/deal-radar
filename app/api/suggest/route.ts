@@ -16,9 +16,10 @@ export async function GET(req: NextRequest) {
   const mode = req.nextUrl.searchParams.get('mode')
   let url: string
   if (mode === 'reverse') {
-    const lat = req.nextUrl.searchParams.get('lat')
-    const lng = req.nextUrl.searchParams.get('lng')
-    if (!lat || !lng) return NextResponse.json({ error: 'lat/lng required' }, { status: 400 })
+    // parse as numbers so nothing but coordinates reaches the upstream URL
+    const lat = parseFloat(req.nextUrl.searchParams.get('lat') ?? '')
+    const lng = parseFloat(req.nextUrl.searchParams.get('lng') ?? '')
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return NextResponse.json({ error: 'lat/lng required' }, { status: 400 })
     url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`
   } else {
     if (!q || q.length < 3) return NextResponse.json({ suggestions: [] })

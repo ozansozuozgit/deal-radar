@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import type { DealRecord } from './DealCard'
+import { isHistoricalLow, type DealRecord } from './DealCard'
 import { FlyerCrop } from './FlyerCrop'
+import { daysLeft as daysUntil } from '@/lib/dates'
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
 
@@ -25,30 +26,39 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
   onWatch: (term: string) => void
   onAddToList: (text: string) => void
 }) {
-  const [points, setPoints] = useState<HistoryPoint[] | null>(null)
+  const name = (deal as unknown as { normalized_name?: string }).normalized_name
+  const [fetched, setFetched] = useState<HistoryPoint[] | null>(null)
+  const points = name ? fetched : []
   const [done, setDone] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState(false)
 
   useEffect(() => {
-    const name = (deal as unknown as { normalized_name?: string }).normalized_name
-    if (!name) { setPoints([]); return }
-    fetch(`/api/history?name=${encodeURIComponent(name)}&store=${deal.merchant_slug}`)
-      .then(r => r.json()).then(d => setPoints(d.points ?? [])).catch(() => setPoints([]))
-  }, [deal])
+    if (!name) return
+    const ctrl = new AbortController()
+    const params = new URLSearchParams({ name, store: deal.merchant_slug })
+    fetch(`/api/history?${params}`, { signal: ctrl.signal })
+      .then(r => r.json()).then(d => setFetched(d.points ?? []))
+      .catch(() => { if (!ctrl.signal.aborted) setFetched([]) })
+    return () => ctrl.abort()
+  }, [name, deal.merchant_slug])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') (zoomed ? setZoomed(false) : onClose()) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (zoomed) setZoomed(false)
+      else onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [zoomed, onClose])
 
   const numeric = (points ?? []).filter(p => p.price != null) as Array<{ valid_from: string; price: number }>
-  const daysLeft = deal.valid_to ? Math.max(0, Math.ceil((+new Date(deal.valid_to) - Date.now()) / 86_400_000)) : null
+  const daysLeft = daysUntil(deal.valid_to)
   const link = itemLink(deal)
   const hasVisual = !!(deal.crop || deal.image_url)
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal>
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal aria-label={deal.name}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[90vh] max-w-xl mx-auto rounded-t-2xl sm:rounded-2xl bg-neutral-900 border border-neutral-800 p-5 sm:p-6 max-h-[88vh] overflow-y-auto"
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -83,7 +93,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
             <div className="flex items-center gap-2 flex-wrap mt-1 empty:hidden">
               {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
                 <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {deal.size_unit}</span>}
-              {deal.price != null && deal.hist_min_price != null && (deal.hist_weeks ?? 0) >= 4 && deal.price <= deal.hist_min_price &&
+              {isHistoricalLow(deal) &&
                 <span className="text-xs bg-amber-900/50 text-amber-300 rounded px-1.5 py-0.5">🏷️ lowest price in {deal.hist_weeks} weeks</span>}
             </div>
             {deal.prime_price != null && <div className="text-sm text-sky-300 mt-1">${deal.prime_price.toFixed(2)} with Prime</div>}

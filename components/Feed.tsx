@@ -31,25 +31,27 @@ const SORTS = [
   { value: 'price', label: '💲 Lowest price' },
   { value: 'ending', label: '⏳ Ending soon' },
 ]
+const DEALS_LIMIT = 200
 
 export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => void }) {
   const [tab, setTab] = useState<'deals' | 'list'>('deals')
   const [meta, setMeta] = useState<Meta | null>(null)
-  const [deals, setDeals] = useState<DealRecord[]>([])
+  // results are tagged with the query that produced them, so a stale response is
+  // never shown for newer filters and "loading" is simply "results don't match yet"
+  const [results, setResults] = useState<{ key: string; deals: DealRecord[] } | null>(null)
   const [q, setQ] = useState('')
   const [storeSel, setStoreSel] = useState<string[] | null>(prefs.enabledStores)
   const [catSel, setCatSel] = useState<string[] | null>(null)
   const [sort, setSort] = useState('discount')
   const [upcoming, setUpcoming] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<DealRecord | null>(null)
-  const [watches, setWatches] = useState<Watch[]>([])
+  // Feed only mounts client-side after prefs load, so reading localStorage here is safe
+  const [watches, setWatches] = useState<Watch[]>(() => loadWatches())
   const [watchHits, setWatchHits] = useState<Map<string, DealRecord | null>>(new Map())
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
   const [dinner, setDinner] = useState<DinnerIdea[]>([])
   const [dinnerOpen, setDinnerOpen] = useState(true)
 
-  useEffect(() => { setWatches(loadWatches()) }, [])
   useEffect(() => { currentPushStatus().then(setPushStatus) }, [])
   useEffect(() => {
     fetch('/api/dinner').then(r => r.json()).then(d => setDinner(d.ideas ?? [])).catch(() => {})
@@ -60,21 +62,29 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles),
     [meta, prefs.radiusMiles])
 
-  useEffect(() => {
-    if (!meta || tab !== 'deals') return
+  const dealsKey = useMemo(() => {
     const params = new URLSearchParams()
-    if (q) params.set('q', q)
+    if (q.trim()) params.set('q', q.trim())
     const stores = storeSel ?? inRadius.map(s => s.slug)
     if (stores.length) params.set('stores', stores.join(','))
     if (catSel?.length === 1) params.set('category', catSel[0])
     params.set('status', upcoming ? 'upcoming' : 'active')
     params.set('sort', sort)
-    setLoading(true)
+    params.set('limit', String(DEALS_LIMIT))
+    return params.toString()
+  }, [q, storeSel, catSel, sort, upcoming, inRadius])
+  const loading = results?.key !== dealsKey
+  const deals = useMemo(() => results?.deals ?? [], [results])
+
+  useEffect(() => {
+    if (!meta || tab !== 'deals') return
+    const ctrl = new AbortController()
     const t = setTimeout(() =>
-      fetch(`/api/deals?${params}`).then(r => r.json())
-        .then(d => setDeals(d.deals ?? [])).finally(() => setLoading(false)), 250)
-    return () => clearTimeout(t)
-  }, [q, storeSel, catSel, sort, upcoming, inRadius, meta, tab])
+      fetch(`/api/deals?${dealsKey}`, { signal: ctrl.signal }).then(r => r.json())
+        .then(d => setResults({ key: dealsKey, deals: d.deals ?? [] }))
+        .catch(() => { if (!ctrl.signal.aborted) setResults({ key: dealsKey, deals: [] }) }), 250)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [dealsKey, meta, tab])
 
   // watches: cheapest current match per term, within radius stores
   useEffect(() => {
@@ -109,9 +119,9 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
       <div className="sticky top-0 z-10 bg-neutral-950/95 backdrop-blur pt-4 pb-2 flex flex-col gap-2">
         <div className="flex gap-2 items-center">
           <div className="flex rounded-xl bg-neutral-900 p-1 text-sm">
-            <button onClick={() => setTab('deals')}
+            <button onClick={() => setTab('deals')} aria-pressed={tab === 'deals'}
               className={`px-3 py-1.5 rounded-lg ${tab === 'deals' ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>Deals</button>
-            <button onClick={() => setTab('list')}
+            <button onClick={() => setTab('list')} aria-pressed={tab === 'list'}
               className={`px-3 py-1.5 rounded-lg ${tab === 'list' ? 'bg-neutral-700 font-medium' : 'text-neutral-400'}`}>My list</button>
           </div>
           <div className="flex-1" />
@@ -125,12 +135,13 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
           <>
             <div className="flex gap-2 items-center">
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search deals… (e.g. chicken)"
+                type="search" aria-label="Search deals"
                 className="flex-1 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600" />
               <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort"
                 className="rounded-xl bg-neutral-800 border-r-8 border-transparent px-2 py-2.5 text-sm outline-none">
                 {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
-              <button onClick={() => setUpcoming(u => !u)}
+              <button onClick={() => setUpcoming(u => !u)} aria-pressed={upcoming}
                 className={`rounded-xl px-3 py-2.5 text-xs border whitespace-nowrap ${upcoming ? 'bg-sky-700 border-sky-500' : 'border-neutral-700 text-neutral-300'}`}>
                 {upcoming ? 'Upcoming' : 'This week'}
               </button>
@@ -220,7 +231,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
             </div>
           )}
 
-          {!loading && <div className="text-xs text-neutral-500 mt-3">{deals.length}{deals.length === 500 ? '+' : ''} deals{q ? ` for “${q}”` : ''}</div>}
+          {!loading && <div className="text-xs text-neutral-500 mt-3">{deals.length}{deals.length === DEALS_LIMIT ? '+' : ''} deals{q ? ` for “${q}”` : ''}</div>}
           {loading ? <SkeletonCards />
             : deals.length === 0 ? (
               <div className="text-center text-neutral-500 mt-20">

@@ -90,9 +90,13 @@ To find your Whole Foods store id: `npx tsx scripts/wf-find-store.ts <store-page
 ## Tests
 
 ```bash
-npm test        # ~100 unit tests, offline (captured API fixtures in fixtures/)
-npm run e2e     # Playwright end-to-end against a local dev server
+npm test             # ~100 unit tests, offline (captured API fixtures in fixtures/)
+npm run lint         # ESLint (Next + React Compiler rules)
+npm run typecheck    # tsc --noEmit
+npm run e2e          # Playwright end-to-end against a local dev server (needs real data)
 ```
+
+Lint, typecheck, and unit tests run on every pull request ([ci workflow](.github/workflows/ci.yml)).
 
 ## Coverage & caveats
 

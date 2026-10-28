@@ -1,5 +1,6 @@
 import type { CropRect } from '@/lib/types'
 import { FlyerCrop } from './FlyerCrop'
+import { daysLeft as daysUntil } from '@/lib/dates'
 
 export interface DealRecord {
   id: number; name: string; description: string | null
@@ -19,7 +20,7 @@ export function isHistoricalLow(deal: DealRecord): boolean {
 }
 
 export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => void }) {
-  const daysLeft = deal.valid_to ? Math.max(0, Math.ceil((+new Date(deal.valid_to) - Date.now()) / 86_400_000)) : null
+  const daysLeft = daysUntil(deal.valid_to)
   return (
     <button onClick={onClick}
       className="text-left rounded-xl bg-neutral-900 p-3 flex flex-col gap-2 hover:bg-neutral-800/80 active:scale-[0.98] transition">

@@ -4,6 +4,11 @@ on:
     - cron: '0 10 * * *'   # 06:00 America/New_York during EDT
   workflow_dispatch:
 
+# "Refresh now" can be pressed repeatedly; never run two scans at once
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
