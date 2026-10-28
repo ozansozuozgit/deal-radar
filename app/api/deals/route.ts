@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/db'
-import { parseDealsParams } from '@/lib/api/dealsQuery'
+import { ilikeAny, parseDealsParams } from '@/lib/api/dealsQuery'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   else q = q.gt('valid_from', now)
   if (p.stores) q = q.in('merchant_slug', p.stores)
   if (p.category) q = q.eq('category', p.category)
-  if (p.q) q = q.or(`name.ilike.%${p.q}%,normalized_name.ilike.%${p.q}%`)
+  if (p.q) q = q.or(ilikeAny(['name', 'normalized_name'], p.q))
   if (p.sort === 'price') q = q.order('price', { ascending: true, nullsFirst: false })
   else if (p.sort === 'ending') q = q.order('valid_to', { ascending: true, nullsFirst: false }).order('discount_pct', { ascending: false, nullsFirst: false })
   else q = q.order('discount_pct', { ascending: false, nullsFirst: false }).order('price', { ascending: true, nullsFirst: false })
