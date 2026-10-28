@@ -1,14 +1,18 @@
+import { readJson, writeJson } from './storage'
+
 export interface ListItem { text: string }
 
 const KEY = 'deal-radar-list-v1'
 
 export function loadList(): ListItem[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]') } catch { return [] }
+  const raw = readJson<unknown>(KEY, [])
+  return Array.isArray(raw)
+    ? raw.filter((i): i is ListItem => typeof i?.text === 'string' && !!i.text.trim()).map(i => ({ text: i.text }))
+    : []
 }
 
 export function saveList(items: ListItem[]): void {
-  localStorage.setItem(KEY, JSON.stringify(items))
+  writeJson(KEY, items)
 }
 
 export function addListItem(text: string): ListItem[] {

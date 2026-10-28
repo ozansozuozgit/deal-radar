@@ -1,4 +1,5 @@
 import { getDeviceId } from './device'
+import { readJson, writeJson } from './storage'
 
 export interface Watch { term: string; maxPrice?: number | null }
 
@@ -13,12 +14,15 @@ function syncServer(method: 'POST' | 'DELETE', term: string, maxPrice?: number |
 }
 
 export function loadWatches(): Watch[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]') } catch { return [] }
+  const raw = readJson<unknown>(KEY, [])
+  return Array.isArray(raw)
+    ? raw.filter((w): w is Watch => typeof w?.term === 'string' && !!w.term.trim())
+      .map(w => ({ term: w.term, maxPrice: typeof w.maxPrice === 'number' ? w.maxPrice : null }))
+    : []
 }
 
 export function saveWatches(watches: Watch[]): void {
-  localStorage.setItem(KEY, JSON.stringify(watches))
+  writeJson(KEY, watches)
 }
 
 export function addWatch(term: string, maxPrice?: number | null): Watch[] {

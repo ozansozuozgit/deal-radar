@@ -9,13 +9,9 @@ import { addWatch, loadWatches, removeWatch, type Watch } from '@/lib/client/wat
 import { addListItem } from '@/lib/client/list'
 import { currentPushStatus, enablePush, type PushStatus } from '@/lib/client/push'
 import { savePrefs, type Prefs } from '@/lib/client/prefs'
-import { timeAgo } from '@/lib/dates'
-
-interface DinnerIdea {
-  title: string; emoji: string; description: string
-  ingredients: Array<{ name: string; dealName?: string; store?: string; price?: number }>
-  estCost: number
-}
+import { hoursSince, timeAgo } from '@/lib/dates'
+import { useOnline } from '@/lib/client/online'
+import type { DinnerIdea } from '@/lib/dinner'
 
 interface Meta {
   stores: Array<{ slug: string; name: string; distance_miles: number | null; logo_url: string | null; deal_count: number }>
@@ -60,9 +56,13 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
 
   useEffect(() => { currentPushStatus().then(setPushStatus) }, [])
   useEffect(() => {
-    fetch('/api/dinner').then(r => r.json()).then(d => setDinner(d.ideas ?? [])).catch(() => {})
+    fetch('/api/dinner').then(r => r.json()).then(d => setDinner(Array.isArray(d?.ideas) ? d.ideas : [])).catch(() => {})
   }, [])
-  useEffect(() => { fetch('/api/meta').then(r => r.json()).then(setMeta).catch(() => setMeta({ stores: [], freshness: [] })) }, [])
+  useEffect(() => {
+    fetch('/api/meta').then(r => r.json())
+      .then(d => setMeta({ stores: Array.isArray(d?.stores) ? d.stores : [], freshness: Array.isArray(d?.freshness) ? d.freshness : [] }))
+      .catch(() => setMeta({ stores: [], freshness: [] }))
+  }, [])
 
   const inRadius = useMemo(() =>
     (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles),
@@ -75,13 +75,15 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   const baseKey = useMemo(() => {
     const params = new URLSearchParams()
     if (q.trim()) params.set('q', q.trim())
-    const stores = storeSel ?? inRadius.map(s => s.slug)
+    // saved picks can point at stores that are now out of radius or gone; ignore those
+    const picked = storeSel?.filter(s => inRadiusSlugs.includes(s))
+    const stores = picked?.length ? picked : inRadiusSlugs
     if (stores.length) params.set('stores', stores.join(','))
     if (catSel?.length === 1) params.set('category', catSel[0])
     params.set('status', upcoming ? 'upcoming' : 'active')
     params.set('sort', sort)
     return params.toString()
-  }, [q, storeSel, catSel, sort, upcoming, inRadius])
+  }, [q, storeSel, catSel, sort, upcoming, inRadiusSlugs])
   // "Show more" raises the limit for the current filters only; any filter change resets it
   const [more, setMore] = useState({ baseKey: '', limit: DEALS_LIMIT })
   const limit = more.baseKey === baseKey ? more.limit : DEALS_LIMIT
@@ -116,6 +118,12 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [selected])
+
+  const online = useOnline()
+  // the daily scan runs at ~6am; if the newest successful run is much older, it's failing
+  const lastGood = (meta?.freshness ?? []).filter(f => !f.error && f.finished_at)
+    .reduce<string | null>((best, f) => (!best || f.finished_at > best ? f.finished_at : best), null)
+  const stale = (hoursSince(lastGood) ?? 0) > 36
 
   const hasFilters = !!q.trim() || !!storeSel || !!catSel || upcoming
   function clearFilters() { setQ(''); setStoreSel(null); setCatSel(null); setUpcoming(false) }
@@ -208,18 +216,36 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
         )}
       </div>
 
+      {!online && (
+        <div className="mt-3 rounded-xl border border-sky-900 bg-sky-950/40 px-3 py-2 text-xs text-sky-200" role="status">
+          📴 You&apos;re offline — showing deals saved on this device. Prices may have changed.
+        </div>
+      )}
+      {meta && meta.stores.length > 0 && inRadius.length === 0 && (
+        <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-300 flex items-center gap-3" role="status">
+          <span className="flex-1">No stores with deals within {prefs.radiusMiles} mi — showing everything nearby. The closest is {Math.min(...meta.stores.map(s => s.distance_miles ?? Infinity)).toFixed(1)} mi away.</span>
+          <button onClick={onOpenSetup} className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1 hover:bg-neutral-800">Change radius</button>
+        </div>
+      )}
+      {online && stale && (
+        <div className="mt-3 rounded-xl border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200" role="status">
+          ⚠️ Deals were last updated {timeAgo(lastGood)} — the daily scan may be failing, so some may have ended.
+        </div>
+      )}
+
       {tab === 'list' ? <ListView storeSlugs={inRadiusSlugs} /> : (
         <>
           {watches.length > 0 && (
             <div className="mt-3">
               <div className="flex items-center gap-3 mb-1.5">
                 <div className="text-xs uppercase tracking-wide text-neutral-500">👀 Watching</div>
-                {pushStatus === 'idle' && (
+                {(pushStatus === 'idle' || pushStatus === 'error') && (
                   <button onClick={() => enablePush().then(setPushStatus)}
                     className="text-xs rounded-lg border border-neutral-700 px-2 py-0.5 text-neutral-300 hover:bg-neutral-800">
-                    🔔 Notify me when these go on sale
+                    {pushStatus === 'error' ? '⚠️ Couldn’t turn on alerts — try again' : '🔔 Notify me when these go on sale'}
                   </button>
                 )}
+                {pushStatus === 'needs-install' && <span className="text-xs text-neutral-500">🔔 For alerts: Share → Add to Home Screen, then open it from there</span>}
                 {pushStatus === 'subscribed' && <span className="text-xs text-emerald-500">🔔 alerts on</span>}
                 {pushStatus === 'denied' && <span className="text-xs text-neutral-600">notifications blocked in browser settings</span>}
               </div>
@@ -289,7 +315,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
           {failed ? (
             <div className="text-center text-neutral-400 mt-20" role="alert">
               <div className="text-4xl mb-2">📡</div>
-              Couldn&apos;t load deals.
+              {online ? <>Couldn&apos;t load deals.</> : <>You&apos;re offline, and these deals aren&apos;t saved on this device yet.</>}
               <div>
                 <button onClick={() => { setResults(null); setRetry(n => n + 1) }}
                   className="mt-3 rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-800">Try again</button>

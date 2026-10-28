@@ -11,6 +11,12 @@ export default function Home() {
   // prefs live in localStorage, which only exists after hydration
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPrefs(loadPrefs()); setReady(true) }, [])
+  // offline support + push; skipped in dev so stale caches don't fight hot reload
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(e => console.error('[sw] register failed:', e))
+    }
+  }, [])
   if (!ready) return null
   if (!prefs || editing) return <SetupCard initial={prefs} onDone={p => { setPrefs(p); setEditing(false) }} />
   return <Feed prefs={prefs} onOpenSetup={() => setEditing(true)} />
