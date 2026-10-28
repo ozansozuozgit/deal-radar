@@ -10,10 +10,12 @@ test('historical low needs a month of history', () => {
 })
 
 test('usual price only on the same basis and above the deal', () => {
-  expect(usualPrice({ ...base, typical_price: 4.99, cmp_basis: 'ea' })).toBe(4.99)
+  expect(usualPrice({ ...base, typical_price: 4.99, cmp_basis: 'ea', price_verdict: 'great' })).toBe(4.99)
+  // no verdict means the history is on another basis (or too thin) to compare
+  expect(usualPrice({ ...base, typical_price: 4.99, cmp_basis: 'ea' })).toBeNull()
   expect(usualPrice({ ...base, typical_price: 4.99, cmp_basis: 'lb' })).toBeNull()
-  expect(usualPrice({ ...base, unit: 'lb', typical_price: 4.99, cmp_basis: 'lb' })).toBe(4.99)
-  expect(usualPrice({ ...base, typical_price: 3.5, cmp_basis: 'ea' })).toBeNull()
+  expect(usualPrice({ ...base, unit: 'lb', typical_price: 4.99, cmp_basis: 'lb', price_verdict: 'typical' })).toBe(4.99)
+  expect(usualPrice({ ...base, typical_price: 3.5, cmp_basis: 'ea', price_verdict: 'weak' })).toBeNull()
 })
 
 test('one signal per deal, record low first', () => {
@@ -32,4 +34,9 @@ test('history beats a big claimed discount', () => {
 
 test('rank drops duplicates from merged queries', () => {
   expect(rankByHistory([{ id: 1, price: 1 }, { id: 1, price: 1 }, { id: 2, price: 2 }])).toHaveLength(2)
+})
+
+test('typical price is ignored without a verdict', () => {
+  const d = { id: 1, price: 5, cmp_price: 5, typical_price: 20 }
+  expect(historyScore(d)).toBe(historyScore({ price: 5 }))
 })

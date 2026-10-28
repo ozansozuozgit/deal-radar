@@ -203,7 +203,8 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   }, [inRadius, prefs.enabledStores])
   const mySlugs = useMemo(() => mine.map(s => s.slug), [mine])
   function toggleMyStore(slug: string) {
-    const base = prefs.enabledStores ?? inRadiusSlugs
+    // start from what the checkboxes show, keeping picks for stores out of radius here
+    const base = [...(prefs.enabledStores ?? []).filter(s => !inRadiusSlugs.includes(s)), ...mySlugs]
     const next = base.includes(slug) ? base.filter(s => s !== slug) : [...base, slug]
     if (!next.some(s => inRadiusSlugs.includes(s))) return // keep at least one
     onChangePrefs({ ...prefs, enabledStores: inRadiusSlugs.every(s => next.includes(s)) ? null : next })

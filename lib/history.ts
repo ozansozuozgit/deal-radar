@@ -21,7 +21,7 @@ export function isHistoricalLow(deal: HistoryFields): boolean {
  * can sit next to the price without a unit mismatch.
  */
 export function usualPrice(deal: HistoryFields): number | null {
-  if (deal.typical_price == null || deal.price == null) return null
+  if (deal.typical_price == null || deal.price == null || !deal.price_verdict) return null
   const sameBasis = deal.cmp_basis === 'ea' || (deal.cmp_basis === 'lb' && deal.unit === 'lb')
   if (!sameBasis || deal.typical_price <= deal.price) return null
   return Number(deal.typical_price)
@@ -47,7 +47,8 @@ export function historyScore(deal: HistoryFields): number {
   else if (deal.price_verdict === 'weak') s -= 2
   const cmp = deal.cmp_price != null ? Number(deal.cmp_price) : null
   const typical = deal.typical_price != null ? Number(deal.typical_price) : null
-  if (cmp != null && typical != null && typical > 0) s += Math.max(-2.5, Math.min(2.5, (1 - cmp / typical) * 5))
+  // a verdict is only set when the deal's basis matches the product's history (see refresh_price_stats)
+  if (deal.price_verdict && cmp != null && typical != null && typical > 0) s += Math.max(-2.5, Math.min(2.5, (1 - cmp / typical) * 5))
   s += Math.min(deal.discount_pct ?? 0, 80) / 25
   return s
 }
