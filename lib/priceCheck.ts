@@ -13,9 +13,9 @@ export function verdictText(verdict: string | null | undefined, cmp: number | nu
   if (!verdict || !stats || cmp == null) return null
   const typical = `$${Number(stats.median).toFixed(2)}${basisSuffix(stats.basis)}`
   const now = `$${Number(cmp).toFixed(2)}${basisSuffix(stats.basis)}`
-  if (verdict === 'great') return `💎 Great price — stock up. Sales around here are usually ${typical}; this is ${now}.`
-  if (verdict === 'weak') return `😐 Weak sale. It usually goes on sale for ${typical} around here (this is ${now}) — worth waiting.`
-  return `👍 A normal sale price (usually ${typical} on sale around here).`
+  if (verdict === 'great') return `Great price. Stock up: sales around here are usually ${typical}, and this is ${now}.`
+  if (verdict === 'weak') return `Weak sale. It usually goes on sale for ${typical} around here (this is ${now}), so it's worth waiting.`
+  return `A normal sale price (usually ${typical} on sale around here).`
 }
 
 /** "On sale about every 4 weeks; last seen 2 weeks ago" */

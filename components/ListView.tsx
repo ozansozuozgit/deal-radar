@@ -223,7 +223,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
           placeholder="Add an item… (e.g. 2 lb chicken breast)" aria-label="Add an item"
           className="flex-1 min-w-0 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600" />
         <button onClick={add} disabled={!draft.trim()}
-          className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-sm font-medium disabled:opacity-50">Add</button>
+          className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 text-sm font-medium disabled:opacity-50">Add</button>
       </div>
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -246,7 +246,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
         )}
       </div>
       {code && syncError && (
-        <div className="text-xs text-amber-400" role="status">⚠️ Couldn&apos;t sync your list — check your connection. Changes may not reach your other devices.</div>
+        <div className="text-xs text-urgent" role="status">Couldn&apos;t sync your list — check your connection. Changes may not reach your other devices.</div>
       )}
       {tripState === 'done' && <div className="text-sm text-emerald-400" role="status">✓ Trip saved — see it under Savings.</div>}
 
@@ -306,9 +306,9 @@ export function ListView({ code, storeSlugs, stores, home }: {
               return (
                 <div key={it.text} className="rounded-xl bg-neutral-900 p-3 flex items-center gap-3">
                   <div className="flex items-center rounded-lg bg-neutral-800 text-xs shrink-0">
-                    <button onClick={() => step(it, -1)} aria-label={`Less ${it.text}`} className="px-2 py-1.5 text-neutral-400 hover:text-white">−</button>
+                    <button onClick={() => step(it, -1)} aria-label={`Less ${it.text}`} className="px-2 py-1.5 text-neutral-400 hover:text-neutral-100">−</button>
                     <span className="min-w-8 text-center tabular-nums">{q || '1'}</span>
-                    <button onClick={() => step(it, 1)} aria-label={`More ${it.text}`} className="px-2 py-1.5 text-neutral-400 hover:text-white">+</button>
+                    <button onClick={() => step(it, 1)} aria-label={`More ${it.text}`} className="px-2 py-1.5 text-neutral-400 hover:text-neutral-100">+</button>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{it.text}</div>
@@ -387,7 +387,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
           ))}
           <div className="sticky bottom-4 flex gap-2">
             <button onClick={finishTrip} disabled={!checkedCount || tripState === 'busy'}
-              className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-black/40">
+              className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-black/10">
               {tripState === 'busy' ? 'Saving…' : tripState === 'error' ? '⚠️ Couldn’t save — try again'
                 : `Finish trip${checkedCount ? ` (${checkedCount} bought)` : ''}`}
             </button>

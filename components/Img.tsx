@@ -1,5 +1,6 @@
 'use client'
 import { useState, type ImgHTMLAttributes, type ReactNode } from 'react'
+import { Icon } from './Icon'
 
 /** <img> that swaps to `fallback` when the source 404s or the CDN is down. */
 export function Img({ fallback = null, src, ...props }: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null; fallback?: ReactNode }) {
@@ -10,5 +11,5 @@ export function Img({ fallback = null, src, ...props }: Omit<ImgHTMLAttributes<H
 }
 
 export function NoImage({ size = 'text-3xl' }: { size?: string }) {
-  return <div className={`w-full aspect-square rounded-lg bg-neutral-800 flex items-center justify-center ${size}`}>🛒</div>
+  return <div className={`w-full h-full min-h-16 rounded-lg bg-tile text-neutral-600 flex items-center justify-center ${size}`}><Icon name="cart" className="w-1/4 h-1/4" /></div>
 }

@@ -30,3 +30,8 @@ test('ilikeAny quotes the value so filter syntax and wildcards stay literal', ()
   expect(ilikeAny(['name'], 'a_b')).toBe('name.ilike."%a\\\\_b%"')
   expect(ilikeAny(['name'], 'say "hi" \\ bye')).toBe('name.ilike."%say \\"hi\\" \\\\\\\\ bye%"')
 })
+
+test('best sort is accepted', () => {
+  expect(parseDealsParams(new URLSearchParams('sort=best')).sort).toBe('best')
+  expect(parseDealsParams(new URLSearchParams('sort=nope')).sort).toBe('discount')
+})

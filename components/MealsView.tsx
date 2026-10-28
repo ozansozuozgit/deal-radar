@@ -108,7 +108,7 @@ export function MealsView({ code, storeSlugs, onSearch }: {
               </span>each
             </label>
             <button onClick={() => plan([], 'all')} disabled={!!busy}
-              className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 font-medium disabled:opacity-50">
+              className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 font-medium disabled:opacity-50">
               {busy === 'all' ? 'Planning…' : dinners?.length ? '↻ New plan' : 'Plan my week'}
             </button>
           </div>
@@ -161,13 +161,13 @@ export function MealsView({ code, storeSlugs, onSearch }: {
                 </div>
               ))}
             </div>
-            <div className="sticky bottom-4 rounded-xl bg-neutral-900/95 backdrop-blur border border-neutral-800 p-3 flex items-center gap-3 flex-wrap shadow-lg shadow-black/40">
+            <div className="sticky bottom-4 rounded-xl bg-neutral-900/95 backdrop-blur border border-neutral-800 p-3 flex items-center gap-3 flex-wrap shadow-lg shadow-black/10">
               <label className="flex items-center gap-2 text-xs text-neutral-400">
                 <input type="checkbox" checked={withStaples} onChange={e => setWithStaples(e.target.checked)} className="accent-emerald-500" />
                 include ingredients that aren’t on sale
               </label>
               <button onClick={addAll} disabled={!toAdd.size}
-                className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-sm font-medium disabled:opacity-50">
+                className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-medium disabled:opacity-50">
                 {added != null ? (added.queued ? `Saved ${added.n} — they’ll sync to your list when you’re back online` : `✓ Added ${added.n} to your list`) : `🛒 Add ${toAdd.size} ingredient${toAdd.size === 1 ? '' : 's'} to list`}
               </button>
             </div>

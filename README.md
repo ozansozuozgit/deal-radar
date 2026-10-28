@@ -54,7 +54,7 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
 - 📈 **Price history sparklines**, deal detail sheets with links to the source flyer,
   expandable images (Fairway zooms to the full flyer page in context)
 - 📲 **Installable PWA that works offline** — the app and the last deals you loaded open in-store
-  with no signal; mobile-first, dark UI
+  with no signal; mobile-first, light "shelf tag" UI
 
 | Landing | Deal detail | List comparison |
 |---|---|---|

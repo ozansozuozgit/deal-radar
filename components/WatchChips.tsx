@@ -123,8 +123,8 @@ function TargetEditor({ watch, onSave, onCancel }: {
         <option value="lb">per lb</option>
       </select>
       <div className="flex gap-2 ml-auto">
-        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-neutral-400 hover:text-white">Cancel</button>
-        <button type="submit" disabled={!valid} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 font-medium disabled:opacity-50">Save</button>
+        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-neutral-400 hover:text-neutral-100">Cancel</button>
+        <button type="submit" disabled={!valid} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 font-medium disabled:opacity-50">Save</button>
       </div>
     </form>
   )

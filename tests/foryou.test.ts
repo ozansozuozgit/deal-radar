@@ -41,7 +41,7 @@ test('isoWeek', () => {
 const stats = { canonical: 'chicken breast', basis: 'lb', median: 3.49, p25: 2.49, low: 1.99, samples: 20, stores: 5, cycle_days: 28, last_sale: '2026-10-07T00:00:00Z' }
 
 test('price check text', () => {
-  expect(verdictText('great', 1.99, stats)).toContain('usually $3.49/lb; this is $1.99/lb')
+  expect(verdictText('great', 1.99, stats)).toContain('usually $3.49/lb, and this is $1.99/lb')
   expect(verdictText('weak', 4.29, stats)).toContain('worth waiting')
   expect(verdictText(null, 1.99, stats)).toBeNull()
   expect(cycleText(stats, +new Date('2026-10-28T00:00:00Z'))).toBe('Goes on sale about every 4 weeks; last sale 3 weeks ago')
