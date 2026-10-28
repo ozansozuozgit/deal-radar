@@ -17,6 +17,7 @@ export async function DELETE(req: NextRequest) {
   const { deviceId, term } = await req.json().catch(() => ({}))
   if (!deviceId || !term) return NextResponse.json({ error: 'deviceId and term required' }, { status: 400 })
   const db = getServiceClient()
-  await db.from('watches').delete().eq('device_id', String(deviceId)).eq('term', String(term).toLowerCase())
+  const { error } = await db.from('watches').delete().eq('device_id', String(deviceId)).eq('term', String(term).toLowerCase())
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

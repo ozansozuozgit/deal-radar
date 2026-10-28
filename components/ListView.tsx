@@ -5,57 +5,54 @@ import { compareList, type CompareDeal } from '@/lib/compare'
 
 const CODE_KEY = 'deal-radar-listcode-v1'
 
-function loadCode(): string | null {
+// URL join code (?list=XXXXXX) > stored code. A join code is remembered and stripped
+// from the URL so a reload doesn't re-join. Idempotent, so safe as a state initializer.
+function initialCode(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem(CODE_KEY)
+  const url = new URL(window.location.href)
+  const joinCode = url.searchParams.get('list')?.toUpperCase() ?? null
+  if (joinCode) {
+    localStorage.setItem(CODE_KEY, joinCode)
+    url.searchParams.delete('list')
+    window.history.replaceState({}, '', url.toString())
+  }
+  return joinCode ?? localStorage.getItem(CODE_KEY)
 }
 
 export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
-  const [items, setItems] = useState<ListItem[]>([])
-  const [code, setCode] = useState<string | null>(null)
+  // ListView only mounts client-side (inside Feed), so reading localStorage here is safe
+  const [code, setCode] = useState<string | null>(initialCode)
+  const [items, setItems] = useState<ListItem[]>(() => (code ? [] : loadList()))
   const [draft, setDraft] = useState('')
   const [deals, setDeals] = useState<CompareDeal[] | null>(null)
   const [shareState, setShareState] = useState<'idle' | 'busy' | 'copied'>('idle')
 
-  const refetchShared = useCallback(async (c: string) => {
-    const res = await fetch(`/api/list?code=${c}`)
-    if (res.ok) {
-      const { items } = await res.json()
-      setItems((items ?? []).map((i: { text: string }) => ({ text: i.text })))
-    }
-  }, [])
+  const refetchShared = useCallback((c: string) =>
+    fetch(`/api/list?code=${encodeURIComponent(c)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(d => { if (d) setItems((d.items ?? []).map((i: { text: string }) => ({ text: i.text }))) })
+      .catch(() => { /* offline: keep what we have */ }), [])
 
-  // initial load: URL join code > stored code > local list
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    const joinCode = url.searchParams.get('list')?.toUpperCase() ?? null
-    const c = joinCode ?? loadCode()
-    if (joinCode) {
-      localStorage.setItem(CODE_KEY, joinCode)
-      url.searchParams.delete('list')
-      window.history.replaceState({}, '', url.toString())
-    }
-    setCode(c)
-    if (c) refetchShared(c)
-    else setItems(loadList())
-  }, [refetchShared])
-
-  // refresh shared list when returning to the tab
+  // load the shared list, and refresh it when returning to the tab
   useEffect(() => {
     if (!code) return
+    refetchShared(code)
     const onFocus = () => refetchShared(code)
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [code, refetchShared])
 
+  const hasItems = items.length > 0
   useEffect(() => {
-    if (items.length === 0) { setDeals([]); return }
+    if (!hasItems) return
+    const ctrl = new AbortController()
     const params = new URLSearchParams({ status: 'active', limit: '500' })
     if (storeSlugs.length) params.set('stores', storeSlugs.join(','))
-    fetch(`/api/deals?${params}`).then(r => r.json())
+    fetch(`/api/deals?${params}`, { signal: ctrl.signal }).then(r => r.json())
       .then(d => setDeals((d.deals ?? []) as CompareDeal[]))
-      .catch(() => setDeals([]))
-  }, [items.length, storeSlugs])
+      .catch(() => { if (!ctrl.signal.aborted) setDeals([]) })
+    return () => ctrl.abort()
+  }, [hasItems, storeSlugs])
 
   const result = useMemo(
     () => (deals && items.length ? compareList(items.map(i => i.text), deals) : null),
@@ -111,7 +108,7 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
       <div className="flex gap-2">
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
-          placeholder="Add an item… (e.g. chicken breast)"
+          placeholder="Add an item… (e.g. chicken breast)" aria-label="Add an item"
           className="flex-1 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600" />
         <button onClick={add} disabled={!draft.trim()}
           className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-sm font-medium disabled:opacity-50">Add</button>
