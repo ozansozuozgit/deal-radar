@@ -300,7 +300,8 @@ export function ListView({ code, storeSlugs, stores, home }: {
           <div className="flex flex-col gap-2">
             {items.map(it => {
               const r = result?.items.find(x => x.text === it.text)
-              const p = assignment.get(it.text) ?? r?.bestPick ?? null
+              // a chosen plan shows only what it covers; the "no deal at this plan's stores" line explains the rest
+              const p = assignment.get(it.text) ?? (plan?.slugs ? null : r?.bestPick ?? null)
               const q = formatQty(it.qty ?? 1, it.unit ?? null)
               return (
                 <div key={it.text} className="rounded-xl bg-neutral-900 p-3 flex items-center gap-3">

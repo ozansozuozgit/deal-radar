@@ -65,15 +65,20 @@ export function MealsView({ code, storeSlugs, onSearch }: {
   }
 
   const chosen = (dinners ?? []).filter(d => picked.has(d.title))
-  const toAdd = new Map<string, Dinner['ingredients'][number]>()
-  for (const d of chosen) for (const i of d.ingredients) if ((i.dealId || withStaples) && !toAdd.has(i.name)) toAdd.set(i.name, i)
+  // the same ingredient in several dinners adds up (2 lb chicken twice is 4 lb)
+  const toAdd = new Map<string, { ing: Dinner['ingredients'][number]; qty: number; unit: string | null }>()
+  for (const d of chosen) for (const i of d.ingredients) {
+    if (!i.dealId && !withStaples) continue
+    const { qty, unit } = amountToQty(i.amount)
+    const cur = toAdd.get(i.name)
+    if (!cur) toAdd.set(i.name, { ing: i, qty, unit })
+    else if (cur.unit === unit) cur.qty += qty
+  }
 
   async function addAll() {
     const items = [...toAdd.values()]
-    const results = await Promise.all(items.map(i => {
-      const { qty, unit } = amountToQty(i.amount)
-      return addToActiveList(code, { text: i.name, qty, unit, pinnedDealId: i.dealId ?? null })
-    }))
+    const results = await Promise.all(items.map(({ ing, qty, unit }) =>
+      addToActiveList(code, { text: ing.name, qty, unit, pinnedDealId: ing.dealId ?? null })))
     setAdded({ n: items.length, queued: results.includes('queued') })
     setTimeout(() => setAdded(null), 4000)
   }
