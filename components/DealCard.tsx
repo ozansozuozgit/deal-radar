@@ -54,7 +54,7 @@ export function DealCard({ deal, onClick }: { deal: DealRecord; onClick?: () => 
           {deal.merchant_logo && <img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white shrink-0" />}
           <span className="truncate">{deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}</span>
         </span>
-        {daysLeft != null && <span className="shrink-0">{daysLeft === 0 ? 'ends today' : `${daysLeft}d left`}</span>}
+        {daysLeft != null && <span className={`shrink-0 ${daysLeft <= 1 ? 'text-amber-400' : ''}`}>{daysLeft === 0 ? 'ends today' : `${daysLeft}d left`}</span>}
       </div>
     </button>
   )

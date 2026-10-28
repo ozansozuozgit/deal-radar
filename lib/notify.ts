@@ -1,8 +1,11 @@
-import { getServiceClient } from '@/lib/db'
+import { fetchAll, getServiceClient } from '@/lib/db'
 import { matchesForItem, type CompareDeal } from '@/lib/compare'
 
 interface WatchRow { device_id: string; term: string; max_price: number | null }
 type AlertDeal = CompareDeal & { source: string; external_id: string }
+
+// Deals run about a week, so a dedupe key older than this can't match a live deal again
+const NOTIFIED_RETENTION_DAYS = 30
 
 export interface Alert { deviceId: string; term: string; dedupeKey: string; deal: AlertDeal }
 
@@ -44,19 +47,26 @@ export async function sendWatchAlerts(): Promise<void> {
   if (!activeWatches.length) { console.log('[notify] no watches with subscriptions'); return }
 
   const now = new Date().toISOString()
-  const { data: deals } = await db.from('deals')
+  const deals = await fetchAll<Record<string, unknown>>((from, to) => db.from('deals')
     .select('name, normalized_name, merchant_slug, price, source, external_id')
-    .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now).limit(10_000)
+    .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
+    .order('id').range(from, to))
   // merchant display names
   const { data: stores } = await db.from('stores').select('slug, name')
   const storeName = new Map((stores ?? []).map(s => [s.slug, s.name]))
-  const alertDeals: AlertDeal[] = (deals ?? []).map(d => ({
+  const alertDeals: AlertDeal[] = deals.map(d => ({
     ...(d as unknown as AlertDeal),
     merchant_name: storeName.get((d as { merchant_slug: string }).merchant_slug) ?? (d as { merchant_slug: string }).merchant_slug,
   }))
 
-  const { data: notified } = await db.from('notified').select('device_id, dedupe_key').limit(10_000)
-  const seen = new Set((notified ?? []).map(n => `${n.device_id}:${n.dedupe_key}`))
+  const cutoff = new Date(Date.now() - NOTIFIED_RETENTION_DAYS * 86_400_000).toISOString()
+  const { error: pruneErr } = await db.from('notified').delete().lt('created_at', cutoff)
+  if (pruneErr) console.error('[notify] prune failed:', pruneErr.message)
+  const devices = [...new Set(activeWatches.map(w => w.device_id))]
+  const notified = await fetchAll<{ device_id: string; dedupe_key: string }>((from, to) => db.from('notified')
+    .select('device_id, dedupe_key').in('device_id', devices)
+    .order('device_id').order('dedupe_key').range(from, to))
+  const seen = new Set(notified.map(n => `${n.device_id}:${n.dedupe_key}`))
 
   const alerts = computeAlerts(activeWatches, alertDeals, seen)
   if (!alerts.length) { console.log('[notify] no new alerts'); return }

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isHistoricalLow, type DealRecord } from './DealCard'
 import { FlyerCrop } from './FlyerCrop'
 import { daysLeft as daysUntil } from '@/lib/dates'
@@ -31,6 +31,16 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
   const points = name ? fetched : []
   const [done, setDone] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // modal hygiene: freeze the page behind, move focus in, hand it back on close
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    const prevFocus = document.activeElement as HTMLElement | null
+    document.body.style.overflow = 'hidden'
+    panelRef.current?.focus()
+    return () => { document.body.style.overflow = prevOverflow; prevFocus?.focus?.() }
+  }, [])
 
   useEffect(() => {
     if (!name) return
@@ -60,7 +70,8 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal aria-label={deal.name}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[90vh] max-w-xl mx-auto rounded-t-2xl sm:rounded-2xl bg-neutral-900 border border-neutral-800 p-5 sm:p-6 max-h-[88vh] overflow-y-auto"
+      <div ref={panelRef} tabIndex={-1}
+        className="absolute inset-x-0 bottom-0 sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[90vh] max-w-xl mx-auto rounded-t-2xl sm:rounded-2xl bg-neutral-900 border border-neutral-800 p-5 sm:p-6 max-h-[88vh] overflow-y-auto overscroll-contain outline-none animate-sheet-in"
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         <div className="mx-auto w-10 h-1 rounded-full bg-neutral-700 mb-4 sm:hidden" />
         <button onClick={onClose} aria-label="Close"
@@ -100,14 +111,20 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
             <div className="text-sm text-neutral-400 mt-2.5 flex items-center gap-1.5 flex-wrap">
               {deal.merchant_logo && <img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full bg-white object-contain" />}
               {deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi away` : ''}
-              {daysLeft != null && ` · ${daysLeft === 0 ? 'ends today' : `${daysLeft} days left`}`}
+              {daysLeft != null && ` · ${daysLeft === 0 ? 'ends today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}`}
             </div>
-            {link && (
-              <a href={link.href} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-sky-400 hover:text-sky-300 mt-2">
-                {link.label} ↗
-              </a>
-            )}
+            <div className="flex items-center gap-4 flex-wrap mt-2">
+              {link && (
+                <a href={link.href} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-sky-400 hover:text-sky-300">
+                  {link.label} ↗
+                </a>
+              )}
+              <button onClick={() => shareDeal(deal).then(ok => ok && setDone('share'))}
+                className="text-sm text-sky-400 hover:text-sky-300">
+                {done === 'share' ? '✓ Copied' : 'Share'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -152,6 +169,16 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList }: {
       )}
     </div>
   )
+}
+
+async function shareDeal(deal: DealRecord): Promise<boolean> {
+  const price = deal.price != null ? `$${deal.price.toFixed(2)}${deal.unit ? `/${deal.unit}` : ''}` : deal.sale_story ?? deal.price_text ?? ''
+  const text = `${deal.name}${price ? ` — ${price}` : ''} at ${deal.merchant_name}`
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Deal Radar', text, url: window.location.origin }); return false }
+    await navigator.clipboard.writeText(`${text}\n${window.location.origin}`)
+    return true
+  } catch { return false } // share sheet dismissed / clipboard blocked
 }
 
 function Sparkline({ points }: { points: Array<{ valid_from: string; price: number }> }) {

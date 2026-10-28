@@ -42,17 +42,22 @@ export function ListView({ storeSlugs }: { storeSlugs: string[] }) {
     return () => window.removeEventListener('focus', onFocus)
   }, [code, refetchShared])
 
-  const hasItems = items.length > 0
+  // match server-side against every active deal (not just one page of the feed);
+  // keyed on the item texts so adding/removing an item re-prices the list
+  const itemsKey = JSON.stringify(items.map(i => i.text))
   useEffect(() => {
-    if (!hasItems) return
+    const texts: string[] = JSON.parse(itemsKey)
+    if (!texts.length) return
     const ctrl = new AbortController()
-    const params = new URLSearchParams({ status: 'active', limit: '500' })
-    if (storeSlugs.length) params.set('stores', storeSlugs.join(','))
-    fetch(`/api/deals?${params}`, { signal: ctrl.signal }).then(r => r.json())
-      .then(d => setDeals((d.deals ?? []) as CompareDeal[]))
-      .catch(() => { if (!ctrl.signal.aborted) setDeals([]) })
-    return () => ctrl.abort()
-  }, [hasItems, storeSlugs])
+    const t = setTimeout(() =>
+      fetch('/api/compare', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+        body: JSON.stringify({ items: texts, stores: storeSlugs }),
+      }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then(d => setDeals((d.deals ?? []) as CompareDeal[]))
+        .catch(() => { if (!ctrl.signal.aborted) setDeals([]) }), 200)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [itemsKey, storeSlugs])
 
   const result = useMemo(
     () => (deals && items.length ? compareList(items.map(i => i.text), deals) : null),

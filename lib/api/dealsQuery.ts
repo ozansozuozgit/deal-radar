@@ -3,14 +3,22 @@ export interface DealsParams {
   status: 'active' | 'upcoming'; sort: 'discount' | 'price' | 'ending'; limit: number
 }
 
-/**
- * The search term is interpolated into a PostgREST `or=(…)` filter, where commas and
- * parentheses are syntax and `%`, `_`, `*` are LIKE wildcards. A query like "milk, 2%"
- * used to break the filter and 500. Keep only characters that can't change its meaning.
- */
+/** Trim, collapse whitespace, cap length. `*` is PostgREST's alias for `%`, so drop it. */
 export function sanitizeSearch(raw: string | null | undefined): string | null {
-  const q = (raw ?? '').replace(/[^\p{L}\p{N}\s'&.-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+  const q = (raw ?? '').replace(/[*\p{Cc}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
   return q || null
+}
+
+/**
+ * Case-insensitive substring match on any of `columns`, as a PostgREST `or=(…)` filter.
+ * The term is matched literally: LIKE wildcards are backslash-escaped, then the value is
+ * double-quoted so commas, parentheses, dots and colons can't break the filter syntax
+ * (e.g. "milk, 2%" used to 500, and "w/Aloe" or "2% milk" must still match).
+ */
+export function ilikeAny(columns: string[], term: string): string {
+  const like = `%${term.replace(/[\\%_]/g, '\\$&')}%`
+  const quoted = `"${like.replace(/[\\"]/g, '\\$&')}"`
+  return columns.map(c => `${c}.ilike.${quoted}`).join(',')
 }
 
 export function parseDealsParams(sp: URLSearchParams): DealsParams {

@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DealCard, type DealRecord } from './DealCard'
 import { Chips } from './Chips'
 import { SkeletonCards } from './Skeleton'
@@ -8,7 +8,8 @@ import { ListView } from './ListView'
 import { addWatch, loadWatches, removeWatch, type Watch } from '@/lib/client/watches'
 import { addListItem } from '@/lib/client/list'
 import { currentPushStatus, enablePush, type PushStatus } from '@/lib/client/push'
-import type { Prefs } from '@/lib/client/prefs'
+import { savePrefs, type Prefs } from '@/lib/client/prefs'
+import { timeAgo } from '@/lib/dates'
 
 interface DinnerIdea {
   title: string; emoji: string; description: string
@@ -32,13 +33,18 @@ const SORTS = [
   { value: 'ending', label: '⏳ Ending soon' },
 ]
 const DEALS_LIMIT = 200
+const DEALS_MAX = 500 // /api/deals clamps here
+
+interface Results { key: string; baseKey: string; deals: DealRecord[]; error: boolean }
 
 export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => void }) {
   const [tab, setTab] = useState<'deals' | 'list'>('deals')
   const [meta, setMeta] = useState<Meta | null>(null)
   // results are tagged with the query that produced them, so a stale response is
   // never shown for newer filters and "loading" is simply "results don't match yet"
-  const [results, setResults] = useState<{ key: string; deals: DealRecord[] } | null>(null)
+  const [results, setResults] = useState<Results | null>(null)
+  const [retry, setRetry] = useState(0)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   const [storeSel, setStoreSel] = useState<string[] | null>(prefs.enabledStores)
   const [catSel, setCatSel] = useState<string[] | null>(null)
@@ -61,8 +67,12 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   const inRadius = useMemo(() =>
     (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles),
     [meta, prefs.radiusMiles])
+  const inRadiusSlugs = useMemo(() => inRadius.map(s => s.slug), [inRadius])
 
-  const dealsKey = useMemo(() => {
+  // remember store picks across visits
+  useEffect(() => { savePrefs({ ...prefs, enabledStores: storeSel }) }, [prefs, storeSel])
+
+  const baseKey = useMemo(() => {
     const params = new URLSearchParams()
     if (q.trim()) params.set('q', q.trim())
     const stores = storeSel ?? inRadius.map(s => s.slug)
@@ -70,21 +80,47 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
     if (catSel?.length === 1) params.set('category', catSel[0])
     params.set('status', upcoming ? 'upcoming' : 'active')
     params.set('sort', sort)
-    params.set('limit', String(DEALS_LIMIT))
     return params.toString()
   }, [q, storeSel, catSel, sort, upcoming, inRadius])
+  // "Show more" raises the limit for the current filters only; any filter change resets it
+  const [more, setMore] = useState({ baseKey: '', limit: DEALS_LIMIT })
+  const limit = more.baseKey === baseKey ? more.limit : DEALS_LIMIT
+  const dealsKey = `${baseKey}&limit=${limit}`
   const loading = results?.key !== dealsKey
-  const deals = useMemo(() => results?.deals ?? [], [results])
+  // while loading more, keep showing what we have instead of flashing skeletons
+  const loadingMore = loading && results?.baseKey === baseKey && !results.error
+  const failed = !loading && !!results?.error
+  const deals = useMemo(() => (results && (!loading || loadingMore) ? results.deals : []), [results, loading, loadingMore])
+  const canShowMore = !loading && !failed && deals.length === limit && limit < DEALS_MAX
 
   useEffect(() => {
     if (!meta || tab !== 'deals') return
     const ctrl = new AbortController()
+    const done = (deals: DealRecord[], error: boolean) => setResults({ key: dealsKey, baseKey, deals, error })
     const t = setTimeout(() =>
-      fetch(`/api/deals?${dealsKey}`, { signal: ctrl.signal }).then(r => r.json())
-        .then(d => setResults({ key: dealsKey, deals: d.deals ?? [] }))
-        .catch(() => { if (!ctrl.signal.aborted) setResults({ key: dealsKey, deals: [] }) }), 250)
+      fetch(`/api/deals?${dealsKey}`, { signal: ctrl.signal })
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then(d => done(d.deals ?? [], false))
+        .catch(() => { if (!ctrl.signal.aborted) done([], true) }), 250)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [dealsKey, meta, tab])
+  }, [dealsKey, baseKey, meta, tab, retry])
+
+  // "/" jumps to search, like most sites
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (e.key !== '/' || selected || el?.closest('input, textarea, select, [contenteditable]')) return
+      e.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected])
+
+  const hasFilters = !!q.trim() || !!storeSel || !!catSel || upcoming
+  function clearFilters() { setQ(''); setStoreSel(null); setCatSel(null); setUpcoming(false) }
+  const qTerm = q.trim().toLowerCase()
+  const canWatchQuery = qTerm.length >= 3 && !watches.some(w => w.term === qTerm)
 
   // watches: cheapest current match per term, within radius stores
   useEffect(() => {
@@ -105,17 +141,18 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
   const doWatch = useCallback((term: string) => setWatches(addWatch(term)), [])
   const doAddToList = useCallback((text: string) => { addListItem(text) }, [])
 
-  const [refreshState, setRefreshState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
+  const [refreshState, setRefreshState] = useState<'idle' | 'busy' | 'done' | 'running' | 'cooldown' | 'error'>('idle')
   async function refreshNow() {
     setRefreshState('busy')
     try {
       const res = await fetch('/api/refresh', { method: 'POST' })
-      setRefreshState(res.ok ? 'done' : 'error')
+      const body = await res.json().catch(() => ({}))
+      setRefreshState(res.ok ? (body.alreadyRunning ? 'running' : 'done') : body.reason === 'cooldown' ? 'cooldown' : 'error')
     } catch { setRefreshState('error') }
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
       <div className="sticky top-0 z-10 bg-neutral-950/95 backdrop-blur pt-4 pb-2 flex flex-col gap-2">
         <div className="flex gap-2 items-center">
           <div className="flex rounded-xl bg-neutral-900 p-1 text-sm">
@@ -133,12 +170,19 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
 
         {tab === 'deals' && (
           <>
-            <div className="flex gap-2 items-center">
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search deals… (e.g. chicken)"
-                type="search" aria-label="Search deals"
-                className="flex-1 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600" />
+            <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
+              <div className="relative min-w-0 basis-full sm:basis-0 sm:flex-1">
+                <input ref={searchRef} value={q} onChange={e => setQ(e.target.value)} placeholder="Search deals… (e.g. chicken)"
+                  type="search" aria-label="Search deals" enterKeyHint="search"
+                  onKeyDown={e => { if (e.key === 'Escape') setQ('') }}
+                  className="w-full rounded-xl bg-neutral-800 pl-4 pr-9 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600 [&::-webkit-search-cancel-button]:hidden" />
+                {q && (
+                  <button onClick={() => { setQ(''); searchRef.current?.focus() }} aria-label="Clear search"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-700">×</button>
+                )}
+              </div>
               <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort"
-                className="rounded-xl bg-neutral-800 border-r-8 border-transparent px-2 py-2.5 text-sm outline-none">
+                className="flex-1 sm:flex-none rounded-xl bg-neutral-800 border-r-8 border-transparent px-2 py-2.5 text-sm outline-none">
                 {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
               <button onClick={() => setUpcoming(u => !u)} aria-pressed={upcoming}
@@ -164,7 +208,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
         )}
       </div>
 
-      {tab === 'list' ? <ListView storeSlugs={inRadius.map(s => s.slug)} /> : (
+      {tab === 'list' ? <ListView storeSlugs={inRadiusSlugs} /> : (
         <>
           {watches.length > 0 && (
             <div className="mt-3">
@@ -179,7 +223,7 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
                 {pushStatus === 'subscribed' && <span className="text-xs text-emerald-500">🔔 alerts on</span>}
                 {pushStatus === 'denied' && <span className="text-xs text-neutral-600">notifications blocked in browser settings</span>}
               </div>
-              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
+              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none">
                 {watches.map(w => {
                   const hit = watchHits.get(w.term)
                   return (
@@ -231,29 +275,68 @@ export function Feed({ prefs, onOpenSetup }: { prefs: Prefs; onOpenSetup: () => 
             </div>
           )}
 
-          {!loading && <div className="text-xs text-neutral-500 mt-3">{deals.length}{deals.length === DEALS_LIMIT ? '+' : ''} deals{q ? ` for “${q}”` : ''}</div>}
-          {loading ? <SkeletonCards />
+          {(!loading || loadingMore) && !failed && (
+            <div className="flex items-center gap-3 mt-3 min-h-7">
+              <div className="text-xs text-neutral-500">{deals.length}{deals.length === limit ? '+' : ''} deals{qTerm ? ` for “${q.trim()}”` : ''}</div>
+              {canWatchQuery && (
+                <button onClick={() => doWatch(qTerm)}
+                  className="text-xs rounded-lg border border-neutral-700 px-2 py-1 text-neutral-300 hover:bg-neutral-800">
+                  👀 Watch “{q.trim()}”
+                </button>
+              )}
+            </div>
+          )}
+          {failed ? (
+            <div className="text-center text-neutral-400 mt-20" role="alert">
+              <div className="text-4xl mb-2">📡</div>
+              Couldn&apos;t load deals.
+              <div>
+                <button onClick={() => { setResults(null); setRetry(n => n + 1) }}
+                  className="mt-3 rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-800">Try again</button>
+              </div>
+            </div>
+          ) : loading && !loadingMore ? <SkeletonCards />
             : deals.length === 0 ? (
               <div className="text-center text-neutral-500 mt-20">
                 <div className="text-4xl mb-2">🔍</div>
-                No deals match.<br />Try widening the radius or clearing filters.
+                No deals match{qTerm ? ` “${q.trim()}”` : ''}.
+                {hasFilters ? (
+                  <div>
+                    <button onClick={clearFilters}
+                      className="mt-3 rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-800">Clear filters</button>
+                  </div>
+                ) : <><br />Try widening your radius in settings.</>}
               </div>
-            ) : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 mt-1">{deals.map(d => <DealCard key={d.id} deal={d} onClick={() => setSelected(d)} />)}</div>}
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 mt-1">{deals.map(d => <DealCard key={d.id} deal={d} onClick={() => setSelected(d)} />)}</div>
+                {(canShowMore || loadingMore) && (
+                  <div className="flex justify-center mt-6">
+                    <button onClick={() => setMore({ baseKey, limit: Math.min(limit + DEALS_LIMIT, DEALS_MAX) })} disabled={loadingMore}
+                      className="rounded-xl border border-neutral-700 px-5 py-2.5 text-sm text-neutral-200 hover:bg-neutral-800 disabled:opacity-60">
+                      {loadingMore ? 'Loading…' : 'Show more deals'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
 
           {meta && (
             <div className="mt-8 text-xs text-neutral-600 flex flex-wrap items-end justify-between gap-3">
               <div>
                 {meta.freshness.map(f => (
                   <div key={f.source}>
-                    {f.source}: {f.error ? `⚠️ last attempt failed (${new Date(f.finished_at).toLocaleDateString()}) — showing older data` : `updated ${new Date(f.finished_at).toLocaleDateString()}, ${f.deal_count} deals`}
+                    {f.source}: {f.error ? `⚠️ last attempt failed ${timeAgo(f.finished_at)} — showing older data` : `updated ${timeAgo(f.finished_at)}, ${f.deal_count} deals`}
                   </div>
                 ))}
               </div>
-              <button onClick={refreshNow} disabled={refreshState === 'busy' || refreshState === 'done'}
+              <button onClick={refreshNow} disabled={refreshState !== 'idle' && refreshState !== 'error'}
                 className="rounded-lg border border-neutral-800 px-3 py-1.5 text-neutral-400 hover:text-neutral-200 hover:border-neutral-600 disabled:opacity-60 transition-colors">
                 {refreshState === 'idle' && '🔄 Refresh now'}
                 {refreshState === 'busy' && 'Starting…'}
                 {refreshState === 'done' && '✓ Scan started — new deals in ~3 min'}
+                {refreshState === 'running' && '⏳ A scan is already running'}
+                {refreshState === 'cooldown' && '✓ Deals were just refreshed'}
                 {refreshState === 'error' && '⚠️ Could not start — try again'}
               </button>
             </div>
