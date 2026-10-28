@@ -84,10 +84,10 @@ const RULES: Array<[string, RegExp]> = [
   ['pears', /\bpears?\b/],
   ['cherries', /\bcherr(?:y|ies)\b/],
   ['tomatoes', /\btomato(?:es)?\b(?! sauce| paste)/],
-  ['potatoes', /\bpotato(?:es)?\b(?! chips)/],
   ['sweet potatoes', /\bsweet potato(?:es)?\b|\byams?\b/],
+  ['potatoes', /\bpotato(?:es)?\b(?! chips)/],
   ['onions', /\bonions?\b/],
-  ['garlic', /\bgarlic\b/],
+  ['garlic', /\bgarlic\b(?! bread)/],
   ['bell peppers', /\bbell peppers?\b|\b(?:red|green|yellow|orange) peppers?\b/],
   ['broccoli', /\bbroccoli\b/],
   ['cauliflower', /\bcauliflower\b/],
@@ -105,12 +105,12 @@ const RULES: Array<[string, RegExp]> = [
   // bakery
   ['bread', /\bbread\b|\bloaf\b/],
   ['bagels', /\bbagels?\b/],
-  ['tortillas', /\btortillas?\b|\bwraps?\b/],
+  ['tortillas', /\btortillas?\b(?! chips)|\bwraps?\b/],
   ['english muffins', /\benglish muffins?\b/],
   ['buns', /\bbuns?\b|\brolls?\b/],
   // pantry
+  ['pasta sauce', /\b(?:pasta|spaghetti|marinara|tomato|alfredo|vodka) sauce\b/],
   ['pasta', /\bpasta\b|\bspaghetti\b|\bpenne\b|\brigatoni\b|\bfettuccine\b|\blinguine\b|\bmacaroni\b|\brotini\b|\bfarfalle\b/],
-  ['pasta sauce', /\b(?:pasta|marinara|tomato|alfredo|vodka) sauce\b/],
   ['rice', /\brice\b(?! cakes?| krispies)/],
   ['olive oil', /\bolive oil\b/],
   ['cooking oil', /\b(?:vegetable|canola|avocado|corn|sunflower) oil\b/],
@@ -136,8 +136,8 @@ const RULES: Array<[string, RegExp]> = [
   // household
   ['paper towels', /\bpaper towels?\b/],
   ['toilet paper', /\btoilet paper\b|\bbath tissue\b/],
-  ['laundry detergent', /\blaundry\b|\bdetergent\b/],
   ['dish soap', /\bdish (?:soap|liquid|detergent)\b|\bdishwasher\b/],
+  ['laundry detergent', /\blaundry\b|\bdetergent\b/],
   ['trash bags', /\btrash bags?\b|\bgarbage bags?\b/],
 ]
 

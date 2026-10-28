@@ -44,6 +44,11 @@ test('pickFor scales per-lb deals and rounds packages up', () => {
   expect(pickFor(sized[0] as never, 2, 'lb')).toMatchObject({ cost: 4.98, regularCost: 7.98, packs: 2 })
   expect(pickFor(sized[1] as never, 2, 'lb')).toMatchObject({ cost: 6, packs: 1 })
   expect(pickFor(sized[1] as never, 4, 'lb')).toMatchObject({ cost: 12, packs: 2 })
+  // metric amount against an imperial bottle, and the other way round
+  const bottle = { id: 9, name: 'milk', price: 2, size_qty: 16, size_unit: 'oz' }
+  expect(pickFor(bottle as never, 1, 'l')).toMatchObject({ packs: 3, cost: 6 })
+  const carton = { id: 10, name: 'milk', price: 3, size_qty: 1, size_unit: 'l' }
+  expect(pickFor(carton as never, 1, 'gal')).toMatchObject({ packs: 4, cost: 12 })
   expect(pickFor(sized[3] as never, 2, null)).toMatchObject({ cost: 8, packs: 2 })
 })
 

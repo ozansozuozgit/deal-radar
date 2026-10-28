@@ -105,8 +105,10 @@ export function pickFor(deal: CompareDeal, qty = 1, unit: QtyUnit | string | nul
       const have = deal.size_unit === 'lb' ? { amount: deal.size_qty * 16, base: 'oz' }
         : deal.size_unit === 'oz' ? { amount: deal.size_qty, base: 'oz' }
         : deal.size_unit === 'l' ? { amount: deal.size_qty, base: 'l' } : null
+      // deal sizes and list amounts may mix metric and imperial volume; compare in ounces
+      const oz = (v: { amount: number; base: string }) => (v.base === 'l' ? v.amount * L_TO_OZ : v.amount)
       // 2% slack so "1 lb" doesn't need two 15.9 oz packs
-      packs = have && have.base === want.base ? Math.max(1, Math.ceil(want.amount / have.amount - 0.02)) : 1
+      packs = have ? Math.max(1, Math.ceil(oz(want) / oz(have) - 0.02)) : 1
     } else {
       packs = 1
     }
@@ -127,6 +129,7 @@ export function pricePerLb(deal: Pick<CompareDeal, 'price' | 'unit' | 'size_qty'
   return null
 }
 
+const L_TO_OZ = 33.814
 const WANT_UNITS = { lb: 1, oz: 1, kg: 1, g: 1, gal: 1, l: 1, ml: 1 }
 
 function asItem(i: string | CompareItem): CompareItem { return typeof i === 'string' ? { text: i } : i }

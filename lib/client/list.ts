@@ -59,11 +59,46 @@ export function removeListItems(texts: string[]): ListItem[] {
   return next
 }
 
-/** Add to whichever list is active: the shared one when there's a code, else local. */
-export async function addToActiveList(code: string | null, item: ListItem): Promise<void> {
-  if (!code) { addListItem(item); return }
-  await fetch('/api/list', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, text: item.text, qty: item.qty, unit: item.unit, pinnedDealId: item.pinnedDealId }),
-  }).catch(() => { addListItem(item) })
+// Additions to the shared list that couldn't reach the server (offline, server error).
+// They're retried whenever the shared list loads; see flushPendingAdds.
+const PENDING_KEY = 'deal-radar-list-pending-v1'
+
+function loadPending(): ListItem[] {
+  const raw = readJson<unknown>(PENDING_KEY, [])
+  return Array.isArray(raw) ? raw.filter((i): i is ListItem => typeof i?.text === 'string' && !!i.text.trim()) : []
+}
+
+async function postItem(code: string, item: ListItem): Promise<boolean> {
+  try {
+    const res = await fetch('/api/list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, text: item.text, qty: item.qty, unit: item.unit, pinnedDealId: item.pinnedDealId }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Add to whichever list is active: the shared one when there's a code, else local.
+ * 'queued' means the shared list couldn't be reached; the item is kept and sent later.
+ */
+export async function addToActiveList(code: string | null, item: ListItem): Promise<'added' | 'queued'> {
+  if (!code) { addListItem(item); return 'added' }
+  if (await postItem(code, item)) return 'added'
+  const pending = loadPending()
+  if (!pending.some(i => i.text.toLowerCase() === item.text.trim().toLowerCase())) {
+    writeJson(PENDING_KEY, [...pending, { ...item, text: item.text.trim() }])
+  }
+  return 'queued'
+}
+
+/** Send queued additions to the shared list; keeps the ones that still fail. */
+export async function flushPendingAdds(code: string): Promise<number> {
+  const pending = loadPending()
+  if (!pending.length) return 0
+  const results = await Promise.all(pending.map(i => postItem(code, i)))
+  writeJson(PENDING_KEY, pending.filter((_, n) => !results[n]))
+  return results.filter(Boolean).length
 }

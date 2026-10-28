@@ -20,7 +20,7 @@ export function MealsView({ code, storeSlugs, onSearch }: {
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [withStaples, setWithStaples] = useState(false)
-  const [added, setAdded] = useState<number | null>(null)
+  const [added, setAdded] = useState<{ n: number; queued: boolean } | null>(null)
 
   useEffect(() => {
     if (!code) return
@@ -70,11 +70,11 @@ export function MealsView({ code, storeSlugs, onSearch }: {
 
   async function addAll() {
     const items = [...toAdd.values()]
-    await Promise.all(items.map(i => {
+    const results = await Promise.all(items.map(i => {
       const { qty, unit } = amountToQty(i.amount)
       return addToActiveList(code, { text: i.name, qty, unit, pinnedDealId: i.dealId ?? null })
     }))
-    setAdded(items.length)
+    setAdded({ n: items.length, queued: results.includes('queued') })
     setTimeout(() => setAdded(null), 4000)
   }
 
@@ -163,7 +163,7 @@ export function MealsView({ code, storeSlugs, onSearch }: {
               </label>
               <button onClick={addAll} disabled={!toAdd.size}
                 className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-sm font-medium disabled:opacity-50">
-                {added != null ? `✓ Added ${added} to your list` : `🛒 Add ${toAdd.size} ingredient${toAdd.size === 1 ? '' : 's'} to list`}
+                {added != null ? (added.queued ? `Saved ${added.n} — they’ll sync to your list when you’re back online` : `✓ Added ${added.n} to your list`) : `🛒 Add ${toAdd.size} ingredient${toAdd.size === 1 ? '' : 's'} to list`}
               </button>
             </div>
           </>

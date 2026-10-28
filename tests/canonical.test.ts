@@ -10,6 +10,14 @@ test.each([
   ['80% Lean Ground Chuck', 'ground beef'],
   ['hamburger meat', 'ground beef'],
   ['Chicken Breast Dog Treats', 'pet food'],
+  ['Prego Pasta Sauce 24 oz', 'pasta sauce'],
+  ['Barilla Penne', 'pasta'],
+  ['Sweet Potatoes', 'sweet potatoes'],
+  ['Russet Potatoes 5 lb bag', 'potatoes'],
+  ['Dawn Dish Detergent', 'dish soap'],
+  ['Tide Laundry Detergent', 'laundry detergent'],
+  ['Mission Tortilla Chips', 'chips'],
+  ['Garlic Bread', 'bread'],
   ['Oscar Mayer Hot Dogs', 'hot dogs'],
   ['Atlantic Salmon Steaks', 'salmon'],
   ['Large White Eggs 12 ct', 'eggs'],
@@ -56,4 +64,9 @@ test('comparablePrice normalizes to per lb or per count', () => {
   expect(comparablePrice(3, { qty: 12, unit: 'ct' })).toEqual({ cmp_price: 0.25, cmp_basis: 'ct' })
   expect(comparablePrice(3, null)).toEqual({ cmp_price: 3, cmp_basis: 'ea' })
   expect(comparablePrice(null, null)).toEqual({ cmp_price: null, cmp_basis: null })
+})
+
+test('a specific product does not match its generic neighbour', () => {
+  const pasta = [{ id: 1, name: 'Barilla Penne', normalized_name: 'barilla penne', canonical: 'pasta' }]
+  expect(matchesForItem('pasta sauce', pasta as never)).toEqual([])
 })

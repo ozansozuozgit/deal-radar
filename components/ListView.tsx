@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { addListItem, loadList, removeListItem, removeListItems, updateListItem, type ListItem } from '@/lib/client/list'
+import { addListItem, flushPendingAdds, loadList, removeListItem, removeListItems, updateListItem, type ListItem } from '@/lib/client/list'
 import { readJson, writeJson } from '@/lib/client/storage'
 import { assignItems, compareList, type CompareDeal, type CompareItem, type DealPick } from '@/lib/compare'
 import { formatQty, parseItem, qtyStep } from '@/lib/quantity'
@@ -48,8 +48,9 @@ export function ListView({ code, storeSlugs, stores, home }: {
   const [allOptions, setAllOptions] = useState(false)
   const [tripState, setTripState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
 
+  // send anything added while the server was unreachable, then load
   const refetchShared = useCallback((c: string) =>
-    fetch(`/api/list?code=${encodeURIComponent(c)}`)
+    flushPendingAdds(c).catch(() => 0).then(() => fetch(`/api/list?code=${encodeURIComponent(c)}`))
       .then(res => (res.ok ? res.json() : null))
       .then(d => { if (d) setItems((d.items ?? []).map(fromServer)) })
       .catch(() => { /* offline: keep what we have */ }), [])
