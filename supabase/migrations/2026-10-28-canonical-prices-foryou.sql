@@ -31,6 +31,7 @@ create table if not exists price_stats (
   updated_at timestamptz not null default now()
 );
 alter table price_stats enable row level security;
+drop policy if exists "public read price_stats" on price_stats;
 create policy "public read price_stats" on price_stats for select using (true);
 
 create table if not exists hidden_terms (
@@ -149,6 +150,7 @@ create table if not exists store_branches (
   primary key (source, slug, lat, lng)
 );
 alter table store_branches enable row level security;
+drop policy if exists "public read store_branches" on store_branches;
 create policy "public read store_branches" on store_branches for select using (true);
 
 -- Weekly meal plan per list code
