@@ -606,7 +606,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
       )}
 
       {selected && (
-        <DealSheet deal={selected} onClose={() => setSelected(null)}
+        <DealSheet deal={selected} storeSlugs={mySlugs} onClose={() => setSelected(null)}
           onWatch={doWatch} onAddToList={doAddToList} onHide={code ? hideTerm : undefined} />
       )}
     </div>

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { pickForYou } from '@/lib/foryou'
 import { digestMessage, isoWeek } from '@/lib/digest'
-import { cycleText, verdictText } from '@/lib/priceCheck'
+import { cycleText, verdictLine } from '@/lib/priceCheck'
 import { nearestBranches, placesToScan } from '@/lib/places'
 
 const d = (id: number, name: string, price: number, extra = {}) => ({
@@ -41,9 +41,10 @@ test('isoWeek', () => {
 const stats = { canonical: 'chicken breast', basis: 'lb', median: 3.49, p25: 2.49, low: 1.99, samples: 20, stores: 5, cycle_days: 28, last_sale: '2026-10-07T00:00:00Z' }
 
 test('price check text', () => {
-  expect(verdictText('great', 1.99, stats)).toContain('usually $3.49/lb, and this is $1.99/lb')
-  expect(verdictText('weak', 4.29, stats)).toContain('worth waiting')
-  expect(verdictText(null, 1.99, stats)).toBeNull()
+  expect(verdictLine('great', 5.36)).toBe('Great price. It usually goes on sale for $5.36 around here.')
+  expect(verdictLine('weak', 3.49)).toContain('worth waiting')
+  expect(verdictLine('typical', 3.49)).toBeNull()
+  expect(verdictLine('great', null)).toBeNull()
   expect(cycleText(stats, +new Date('2026-10-28T00:00:00Z'))).toBe('Goes on sale about every 4 weeks; last sale 3 weeks ago')
 })
 
