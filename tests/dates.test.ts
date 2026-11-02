@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { daysLeft, hoursSince, timeAgo } from '@/lib/dates'
+import { daysLeft, hoursSince, shortDate, timeAgo } from '@/lib/dates'
 
 const now = Date.parse('2026-10-28T12:00:00Z')
 
@@ -30,4 +30,13 @@ test('timeAgo buckets', () => {
 test('hoursSince', () => {
   expect(hoursSince('2026-10-27T00:00:00Z', now)).toBe(36)
   expect(hoursSince(null, now)).toBeNull()
+})
+
+test('shortDate reads flyer days in UTC and adds the year only when it differs', () => {
+  const now = Date.parse('2026-11-02T12:00:00Z')
+  expect(shortDate('2026-07-24T04:00:00+00:00', now)).toBe('Jul 24') // Flipp: midnight ET
+  expect(shortDate('2026-07-30T00:00:00+00:00', now)).toBe('Jul 30') // Fairway: midnight UTC
+  expect(shortDate('2025-12-30T05:00:00+00:00', now)).toBe('Dec 30, 2025')
+  expect(shortDate(null, now)).toBeNull()
+  expect(shortDate('nope', now)).toBeNull()
 })

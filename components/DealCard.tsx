@@ -1,7 +1,7 @@
 import type { CropRect } from '@/lib/types'
 import { FlyerCrop } from './FlyerCrop'
 import { Img, NoImage } from './Img'
-import { daysLeft as daysUntil } from '@/lib/dates'
+import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { dealSignal, usualPrice } from '@/lib/history'
 import { Price } from './Price'
 
@@ -14,13 +14,14 @@ export interface DealRecord {
   distance_miles: number | null
   valid_from: string | null; valid_to: string | null; discount_pct: number | null
   unit_price?: number | null; size_qty?: number | null; size_unit?: string | null
-  hist_min_price?: number | null; hist_weeks?: number | null
+  hist_min_price?: number | null; hist_max_price?: number | null
+  hist_weeks?: number | null; hist_since?: string | null
   canonical?: string | null; normalized_name?: string
   cmp_price?: number | null; cmp_basis?: string | null
   typical_price?: number | null; price_verdict?: string | null
 }
 
-export { isHistoricalLow } from '@/lib/history'
+export { isHistoricalLow, isSteadyPrice } from '@/lib/history'
 
 export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord; onClick?: () => void; compact?: boolean }) {
   const daysLeft = daysUntil(deal.valid_to)
@@ -35,7 +36,7 @@ export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord;
           : <Img src={deal.image_url} alt="" loading="lazy" className="w-full h-full object-contain mix-blend-multiply" fallback={<NoImage />} />}
         {signal && (
           <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-ink text-tag px-1.5 py-0.5 text-[11px] font-bold leading-tight">
-            {signal.kind === 'low' ? `Lowest in ${signal.weeks} wks` : 'Great price'}
+            {signal.kind === 'low' ? (shortDate(signal.since) ? `Lowest since ${shortDate(signal.since)}` : 'Lowest price') : 'Great price'}
           </span>
         )}
       </div>
