@@ -47,7 +47,7 @@ async function flyersEverywhere(src: DealSource, extras: LocationConfig[]) {
   for (const loc of extras.filter(l => l.postalCode)) {
     try {
       for (const f of await src.fetchFlyers(loc)) if (!seen.has(f.externalId)) { seen.add(f.externalId); flyers.push(f) }
-    } catch (e) { console.error(`[${src.id}] flyers near ${loc.address} failed:`, e) }
+    } catch (e) { console.error(`[${src.id}] flyers near saved place ${loc.postalCode || '(no zip)'} failed:`, e) }
   }
   return flyers
 }
@@ -119,12 +119,13 @@ async function ingestFlyer(src: DealSource, flyer: FlyerInput, closeSlugs: Set<s
 async function main() {
   const logos = new Map<string, string>()
   const extras = await extraLocations().catch(() => [])
-  if (extras.length) console.log(`[places] also scanning ${extras.map(l => l.address).join('; ')}`)
+  // count only: scan logs can be public, and saved places are home addresses
+  if (extras.length) console.log(`[places] also scanning ${extras.length} saved place(s)`)
   const closeSlugs = await closeStoreSlugs(extras).catch(() => new Set<string>())
   const results = await Promise.all(sources.map(s => runSource(s, logos, closeSlugs, extras)))
   try { await syncStores(DEFAULT_LOCATION, logos) } catch (e) { console.error('store sync failed:', e) }
   for (const loc of extras) {
-    try { await syncStores(loc, undefined, { branchesOnly: true }) } catch (e) { console.error(`store sync near ${loc.address} failed:`, e) }
+    try { await syncStores(loc, undefined, { branchesOnly: true }) } catch (e) { console.error(`store sync near saved place ${loc.postalCode || '(no zip)'} failed:`, e) }
   }
   try {
     const { canonicalizeDeals } = await import('@/lib/ingest/canonical')
