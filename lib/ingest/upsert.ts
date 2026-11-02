@@ -1,6 +1,6 @@
 import { normalizeName } from '@/lib/parse/normalize'
 import { canonicalize } from '@/lib/parse/canonical'
-import { parseSize, unitPrice, type Size } from '@/lib/parse/size'
+import { asLiquid, parseSize, unitPrice, type Size } from '@/lib/parse/size'
 import type { DealInput, FlyerInput } from '@/lib/types'
 
 export function flyerRow(f: FlyerInput) {
@@ -26,16 +26,17 @@ export function comparablePrice(price: number | null | undefined, size: Size | n
 
 export function dealRow(d: DealInput, flyerId: number) {
   // per-lb deals ARE unit-priced already; otherwise parse a package size
+  const canonical = canonicalize(d.name)
   const size = d.unit === 'lb'
     ? { qty: 1, unit: 'lb' as const }
-    : parseSize(`${d.name} ${d.description ?? ''}`)
+    : asLiquid(parseSize(`${d.name} ${d.description ?? ''}`), canonical)
   return {
     size_qty: size?.qty ?? null,
     size_unit: size?.unit ?? null,
     unit_price: unitPrice(d.price ?? null, size),
     ...comparablePrice(d.price, size),
     // the dictionary's answer; ingest fills the rest from the Gemini cache afterwards
-    canonical: canonicalize(d.name),
+    canonical,
     flyer_id: flyerId, source: d.source, external_id: d.externalId,
     merchant_slug: d.merchantSlug, name: d.name,
     normalized_name: normalizeName(d.name),

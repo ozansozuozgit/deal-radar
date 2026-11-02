@@ -29,6 +29,15 @@ export function parseSize(text: string | null | undefined): Size | null {
   return null
 }
 
+// products sold by volume, where flyers often write "64 oz." without "fl"
+const LIQUIDS = new Set(['milk', 'oat milk', 'almond milk', 'half and half', 'heavy cream', 'coffee creamer',
+  'orange juice', 'juice', 'sparkling water', 'water', 'soda', 'olive oil', 'cooking oil'])
+
+/** A weight-ounce size on a liquid product is really fluid ounces. */
+export function asLiquid(size: Size | null, canonical: string | null | undefined): Size | null {
+  return size?.unit === 'oz' && canonical && LIQUIDS.has(canonical) ? { ...size, unit: 'floz' } : size
+}
+
 export function unitPrice(price: number | null | undefined, size: Size | null | undefined): number | null {
   if (price == null || !size || size.qty <= 0) return null
   return Math.round((price / size.qty) * 100) / 100
