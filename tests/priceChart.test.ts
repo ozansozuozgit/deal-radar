@@ -42,3 +42,12 @@ test('usual package price from the comparable median, only on the same basis and
   expect(usualPackagePrice(deal, null)).toBeNull()
   expect(usualPackagePrice({ price: 4.99, cmp_price: null, cmp_basis: 'lb' }, { basis: 'lb', median: 1.34 })).toBeNull()
 })
+
+test('the usual-nearby label sits away from the current dot', () => {
+  // Bartlett pears at Fairway: now $1.79 at the right end, usual nearby also $1.79
+  const pears = [['2026-08-27', 1.49], ['2026-09-24', 1.49], ['2026-10-01', 1.99], ['2026-10-29', 1.79]]
+    .map(([d, p]) => ({ valid_from: `${d}T00:00:00+00:00`, price: p as number }))
+  expect(layoutChart(pears, '2026-10-29T00:00:00+00:00', 1.79).usualLabel).toEqual({ x: CHART.left, anchor: 'start' })
+  expect(layoutChart(pears, '2026-08-27T00:00:00+00:00', 1.79).usualLabel).toEqual({ x: CHART.w - CHART.right, anchor: 'end' })
+  expect(layoutChart(pears, null, null).usualLabel).toBeNull()
+})

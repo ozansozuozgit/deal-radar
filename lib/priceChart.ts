@@ -5,6 +5,8 @@ export interface ChartPoint { valid_from: string; price: number }
 export interface ChartLayout {
   dots: Array<{ x: number; y: number; price: number; current: boolean }>
   usualY: number | null
+  // the "usual nearby" label sits at the end of its line away from the current dot
+  usualLabel: { x: number; anchor: 'start' | 'end' } | null
   dates: Array<{ x: number; label: string; anchor: 'start' | 'middle' | 'end' }>
   min: number; max: number
 }
@@ -37,7 +39,10 @@ export function layoutChart(points: ChartPoint[], currentFrom: string | null, us
     const i = dots.reduce((best, d, j) => (Math.abs(d.x - mid) < Math.abs(dots[best].x - mid) ? j : best), 0)
     if (dots[i].x - first.x > 60 && last.x - dots[i].x > 60) dates.push({ x: dots[i].x, label: shortDate(points[i].valid_from) ?? '', anchor: 'middle' })
   }
-  return { dots, usualY: usual != null ? y(usual) : null, dates, min, max }
+  const curDot = dots.find(d => d.current)!
+  const usualLabel = usual == null ? null
+    : curDot.x > (left + w - right) / 2 ? { x: left, anchor: 'start' as const } : { x: w - right, anchor: 'end' as const }
+  return { dots, usualY: usual != null ? y(usual) : null, usualLabel, dates, min, max }
 }
 
 /**

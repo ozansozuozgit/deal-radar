@@ -239,7 +239,7 @@ async function shareDeal(deal: DealRecord): Promise<boolean> {
 
 /** This store's sales on a real time axis, the deal's own week marked, the usual nearby price dashed. */
 function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; currentFrom: string | null; usual: number | null }) {
-  const { dots, usualY, dates, min, max } = layoutChart(points, currentFrom, usual)
+  const { dots, usualY, usualLabel, dates, min, max } = layoutChart(points, currentFrom, usual)
   const { w, h, left, right } = CHART
   const cur = dots.find(d => d.current)
   const label = `Prices from ${dates[0]?.label} to ${dates[1]?.label ?? dates[0]?.label}, low $${min.toFixed(2)}, high $${max.toFixed(2)}`
@@ -249,9 +249,9 @@ function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; curr
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-md h-auto text-neutral-100 overflow-visible" role="img" aria-label={label}>
       <text x={left - 6} y={topY + 3} textAnchor="end" className="fill-neutral-500 text-[9px] tabular-nums">${Math.max(...dots.map(d => d.price)).toFixed(2)}</text>
       {bottomY - topY > 12 && <text x={left - 6} y={bottomY + 3} textAnchor="end" className="fill-neutral-500 text-[9px] tabular-nums">${Math.min(...dots.map(d => d.price)).toFixed(2)}</text>}
-      {usualY != null && usual != null && <>
+      {usualY != null && usual != null && usualLabel && <>
         <line x1={left} x2={w - right} y1={usualY} y2={usualY} stroke="currentColor" strokeOpacity={0.45} strokeDasharray="4 4" />
-        <text x={w - right} y={usualY - 4} textAnchor="end" className="fill-neutral-500 text-[9px]">usual nearby ${usual.toFixed(2)}</text>
+        <text x={usualLabel.x} y={usualY - 4} textAnchor={usualLabel.anchor} className="fill-neutral-500 text-[9px]">usual nearby ${usual.toFixed(2)}</text>
       </>}
       <polyline points={dots.map(d => `${d.x},${d.y}`).join(' ')} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={2.5} fill="currentColor" />)}
