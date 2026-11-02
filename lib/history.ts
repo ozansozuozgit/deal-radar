@@ -19,6 +19,16 @@ export function isHistoricalLow(deal: HistoryFields): boolean {
     && (deal.hist_weeks ?? 0) >= 4 && deal.price <= deal.hist_min_price && deal.price < deal.hist_max_price
 }
 
+/**
+ * How far (as a fraction) the price sits above the lowest this store has charged over at
+ * least four sales, when that's 15% or more; null otherwise. Pears at $1.79 after $1.49: 0.2.
+ */
+export function aboveStoreLow(deal: HistoryFields): number | null {
+  if (deal.price == null || deal.hist_min_price == null || deal.hist_min_price <= 0 || (deal.hist_weeks ?? 0) < 4) return null
+  const above = deal.price / deal.hist_min_price - 1
+  return above >= 0.15 ? Math.round(above * 100) / 100 : null
+}
+
 /** The same price at every one of at least four sales here: worth saying, but not a low. */
 export function isSteadyPrice(deal: HistoryFields): boolean {
   return deal.price != null && deal.hist_min_price != null && deal.hist_max_price != null
@@ -55,6 +65,9 @@ export function historyScore(deal: HistoryFields): number {
   if (isHistoricalLow(deal)) s += 3 + Math.min((deal.hist_weeks ?? 0) / 8, 2)
   if (deal.price_verdict === 'great') s += 3
   else if (deal.price_verdict === 'weak') s -= 2
+  // well above what this store itself charged before: rank it below deals at or near their low
+  const above = aboveStoreLow(deal)
+  if (above != null) s -= 2 + Math.min(above * 5, 2)
   const cmp = deal.cmp_price != null ? Number(deal.cmp_price) : null
   const typical = deal.typical_price != null ? Number(deal.typical_price) : null
   // a verdict is only set when the deal's basis matches the product's history (see refresh_price_stats)

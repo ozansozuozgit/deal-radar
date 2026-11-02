@@ -7,7 +7,7 @@ import { Icon } from './Icon'
 import { Price } from './Price'
 import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { cycleText, verdictLine, type PriceStats } from '@/lib/priceCheck'
-import { CHART, layoutChart, usualPackagePrice, type ChartPoint } from '@/lib/priceChart'
+import { CHART, layoutChart, usualPackagePrice, wasCheaperNote, type ChartPoint } from '@/lib/priceChart'
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
 interface OtherStore { merchant_slug: string; merchant_name: string; price: number; unit: string | null }
@@ -85,6 +85,7 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
 
   const numeric = (points ?? []).filter(p => p.price != null && p.valid_from != null) as ChartPoint[]
   const usual = usualPackagePrice(deal, stats)
+  const wasCheaper = wasCheaperNote(numeric, deal.price)
   // same product, same unit, for less at another of the shopper's stores this week
   const cheaper = deal.price == null ? [] : others.filter(o => o.price < deal.price! && (o.unit ?? null) === (deal.unit ?? null)).slice(0, 3)
   const daysLeft = daysUntil(deal.valid_to)
@@ -141,6 +142,7 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
                 <span className="text-xs text-neutral-400">
                   Same ${deal.price!.toFixed(2)} at all {deal.hist_weeks} sales here{shortDate(deal.hist_since) ? ` since ${shortDate(deal.hist_since)}` : ''}
                 </span>}
+              {wasCheaper && <span className="text-sm font-bold text-warn">{wasCheaper}</span>}
             </div>
             {deal.prime_price != null && <div className="text-sm text-sky-300 mt-1">${deal.prime_price.toFixed(2)} with Prime</div>}
             <div className="text-sm text-neutral-400 mt-2.5">
@@ -165,7 +167,8 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
 
         <div className="mt-6">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Price history at {deal.merchant_name}</h3>
-          {verdictLine(deal.price_verdict, usual) && <p className="text-sm mb-2">{verdictLine(deal.price_verdict, usual)}</p>}
+          {verdictLine(deal.price_verdict, usual) &&
+            <p className={`text-sm mb-2 ${deal.price_verdict === 'weak' ? 'text-warn' : ''}`}>{verdictLine(deal.price_verdict, usual)}</p>}
           {points === null ? <div className="h-28 rounded bg-neutral-800 animate-pulse" />
             : numeric.length >= 2 ? <PriceChart points={numeric} currentFrom={deal.valid_from} usual={usual} />
             : <p className="text-sm text-neutral-500">History builds up week by week. Check back after a few scans.</p>}
@@ -237,6 +240,9 @@ async function shareDeal(deal: DealRecord): Promise<boolean> {
   } catch { return false } // share sheet dismissed / clipboard blocked
 }
 
+// a ring of the sheet's own background around chart labels, so a line passing behind stays readable
+const HALO = 'stroke-neutral-900 [stroke-width:3px] [paint-order:stroke]'
+
 /** This store's sales on a real time axis, the deal's own week marked, the usual nearby price dashed. */
 function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; currentFrom: string | null; usual: number | null }) {
   const { dots, usualY, usualLabel, dates, min, max } = layoutChart(points, currentFrom, usual)
@@ -251,14 +257,14 @@ function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; curr
       {bottomY - topY > 12 && <text x={left - 6} y={bottomY + 3} textAnchor="end" className="fill-neutral-500 text-[9px] tabular-nums">${Math.min(...dots.map(d => d.price)).toFixed(2)}</text>}
       {usualY != null && usual != null && usualLabel && <>
         <line x1={left} x2={w - right} y1={usualY} y2={usualY} stroke="currentColor" strokeOpacity={0.45} strokeDasharray="4 4" />
-        <text x={usualLabel.x} y={usualY - 4} textAnchor={usualLabel.anchor} className="fill-neutral-500 text-[9px]">usual nearby ${usual.toFixed(2)}</text>
+        <text x={usualLabel.x} y={usualY - 4} textAnchor={usualLabel.anchor} className={`fill-neutral-500 text-[9px] ${HALO}`}>usual nearby ${usual.toFixed(2)}</text>
       </>}
       <polyline points={dots.map(d => `${d.x},${d.y}`).join(' ')} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={2.5} fill="currentColor" />)}
       {cur && <>
         <circle cx={cur.x} cy={cur.y} r={5} className="fill-tag" stroke="currentColor" strokeWidth={2} />
         {/* above the dot, unless that would run off the top; below would hit the date labels */}
-        <text x={cur.x} y={cur.y - 10 < CHART.top ? cur.y + 16 : cur.y - 10} textAnchor={cur.x > w - 60 ? 'end' : cur.x < left + 40 ? 'start' : 'middle'} className="fill-current text-[10px] font-bold">${cur.price.toFixed(2)} now</text>
+        <text x={cur.x} y={cur.y - 10 < CHART.top ? cur.y + 16 : cur.y - 10} textAnchor={cur.x > w - 60 ? 'end' : cur.x < left + 40 ? 'start' : 'middle'} className={`fill-current text-[10px] font-bold ${HALO}`}>${cur.price.toFixed(2)} now</text>
       </>}
       {dates.map(d => <text key={d.anchor} x={d.x} y={h - 4} textAnchor={d.anchor} className="fill-neutral-500 text-[9px]">{d.label}</text>)}
     </svg>

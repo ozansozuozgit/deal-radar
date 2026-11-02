@@ -46,6 +46,18 @@ export function layoutChart(points: ChartPoint[], currentFrom: string | null, us
 }
 
 /**
+ * "Was $1.49 here on Sep 24 (17% less)" when this store's lowest sale over at least four
+ * sales is 15% or more below the deal's price; the date is the latest sale at that low.
+ */
+export function wasCheaperNote(points: ChartPoint[], price: number | null): string | null {
+  if (price == null || points.length < 4) return null
+  const low = Math.min(...points.map(p => p.price))
+  if (low <= 0 || price < low * 1.15) return null
+  const when = shortDate(points.filter(p => p.price === low).at(-1)!.valid_from)
+  return `Was $${low.toFixed(2)} here${when ? ` on ${when}` : ''} (${Math.round((1 - low / price) * 100)}% less)`
+}
+
+/**
  * The usual nearby sale price for this deal's package, from the product's typical
  * comparable price. Null when the bases differ or the result looks implausible.
  */
