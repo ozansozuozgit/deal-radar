@@ -211,7 +211,7 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
           </label>
           {error && <div className="text-sm text-red-400">{error}</div>}
           <button onClick={submit} disabled={busy || !address.trim()}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 text-[15px] font-semibold disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-black/20">
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-on-ink py-3.5 text-[15px] font-semibold disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-black/20">
             {busy ? 'Locating…' : adding ? 'Save place →' : 'Show my deals →'}
           </button>
           {onCancel && (

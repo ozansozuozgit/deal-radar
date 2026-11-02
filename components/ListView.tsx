@@ -223,7 +223,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
           placeholder="Add an item… (e.g. 2 lb chicken breast)" aria-label="Add an item"
           className="flex-1 min-w-0 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm outline-none focus:ring-2 ring-emerald-600" />
         <button onClick={add} disabled={!draft.trim()}
-          className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 text-sm font-medium disabled:opacity-50">Add</button>
+          className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-on-ink px-4 text-sm font-medium disabled:opacity-50">Add</button>
       </div>
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -387,7 +387,7 @@ export function ListView({ code, storeSlugs, stores, home }: {
           ))}
           <div className="sticky bottom-4 flex gap-2">
             <button onClick={finishTrip} disabled={!checkedCount || tripState === 'busy'}
-              className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-black/10">
+              className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-on-ink py-3 text-sm font-semibold disabled:opacity-50 shadow-lg shadow-black/10">
               {tripState === 'busy' ? 'Saving…' : tripState === 'error' ? '⚠️ Couldn’t save — try again'
                 : `Finish trip${checkedCount ? ` (${checkedCount} bought)` : ''}`}
             </button>

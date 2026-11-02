@@ -6,9 +6,11 @@ import { Img, NoImage } from './Img'
 import { Icon } from './Icon'
 import { Price } from './Price'
 import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
-import { basisSuffix, cycleText, verdictText, type PriceStats } from '@/lib/priceCheck'
+import { cycleText, verdictLine, type PriceStats } from '@/lib/priceCheck'
+import { CHART, layoutChart, usualPackagePrice, type ChartPoint } from '@/lib/priceChart'
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
+interface OtherStore { merchant_slug: string; merchant_name: string; price: number; unit: string | null }
 
 const SIZE_LABEL: Record<string, string> = { floz: 'fl oz', l: 'liter' }
 
@@ -26,8 +28,9 @@ function itemLink(deal: DealRecord): { href: string; label: string } | null {
   }
 }
 
-export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
+export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onHide }: {
   deal: DealRecord
+  storeSlugs?: string[]   // the shopper's stores, for the cheaper-this-week line
   onClose: () => void
   onWatch: (term: string) => void
   onAddToList: (deal: DealRecord) => void
@@ -39,6 +42,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
   const [done, setDone] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState(false)
   const [stats, setStats] = useState<PriceStats | null>(null)
+  const [others, setOthers] = useState<OtherStore[]>([])
   const [hiding, setHiding] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -54,12 +58,12 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
   useEffect(() => {
     if (!name) return
     const ctrl = new AbortController()
-    const params = new URLSearchParams({ name, store: deal.merchant_slug })
+    const params = new URLSearchParams({ name, store: deal.merchant_slug, shops: (storeSlugs ?? []).join(',') })
     fetch(`/api/history?${params}`, { signal: ctrl.signal })
-      .then(r => r.json()).then(d => setFetched(d.points ?? []))
+      .then(r => r.json()).then(d => { setFetched(d.points ?? []); setOthers(d.others ?? []) })
       .catch(() => { if (!ctrl.signal.aborted) setFetched([]) })
     return () => ctrl.abort()
-  }, [name, deal.merchant_slug])
+  }, [name, deal.merchant_slug, storeSlugs])
 
   useEffect(() => {
     if (!deal.canonical) return
@@ -79,7 +83,10 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
     return () => window.removeEventListener('keydown', onKey)
   }, [zoomed, onClose])
 
-  const numeric = (points ?? []).filter(p => p.price != null) as Array<{ valid_from: string; price: number }>
+  const numeric = (points ?? []).filter(p => p.price != null && p.valid_from != null) as ChartPoint[]
+  const usual = usualPackagePrice(deal, stats)
+  // same product, same unit, for less at another of the shopper's stores this week
+  const cheaper = deal.price == null ? [] : others.filter(o => o.price < deal.price! && (o.unit ?? null) === (deal.unit ?? null)).slice(0, 3)
   const daysLeft = daysUntil(deal.valid_to)
   const link = itemLink(deal)
   const hasVisual = !!(deal.crop || deal.image_url)
@@ -121,13 +128,13 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
                       : deal.discount_pct != null ? <span className="text-save font-bold text-sm">−{deal.discount_pct}%</span> : null}
                   </span>
                 </>
-              ) : <span className="bg-tag text-ink font-condensed font-extrabold rounded-md px-2 py-1 text-xl">{deal.sale_story ?? deal.price_text ?? 'See flyer price'}</span>}
+              ) : <span className="bg-tag text-on-tag font-condensed font-extrabold rounded-md px-2 py-1 text-xl">{deal.sale_story ?? deal.price_text ?? 'See flyer price'}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1 empty:hidden">
               {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
                 <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {SIZE_LABEL[deal.size_unit] ?? deal.size_unit}</span>}
               {isHistoricalLow(deal) &&
-                <span className="text-xs font-bold bg-ink text-tag rounded px-1.5 py-0.5">
+                <span className="text-xs font-bold bg-badge text-on-badge rounded px-1.5 py-0.5">
                   {shortDate(deal.hist_since) ? `Lowest price here since ${shortDate(deal.hist_since)}` : 'Lowest price here'}
                 </span>}
               {isSteadyPrice(deal) &&
@@ -156,25 +163,20 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
           </div>
         </div>
 
-        {(stats || deal.price_verdict) && (
-          <div className="mt-5 rounded-xl bg-neutral-950 p-3.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">Price check{deal.canonical ? ` · ${deal.canonical}` : ''}</h3>
-            {verdictText(deal.price_verdict, deal.cmp_price, stats) && <p className="text-sm">{verdictText(deal.price_verdict, deal.cmp_price, stats)}</p>}
-            {stats && deal.cmp_price != null && deal.cmp_basis === stats.basis && <PriceRange now={Number(deal.cmp_price)} stats={stats} />}
-            {cycleText(stats) && <p className="text-xs text-neutral-500 mt-2">{cycleText(stats)} (from {stats!.samples} weekly prices at {stats!.stores} store{stats!.stores === 1 ? '' : 's'}).</p>}
-          </div>
-        )}
-
         <div className="mt-6">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Price history at this store</h3>
-          {points === null ? <div className="h-14 rounded bg-neutral-800 animate-pulse" />
-            : numeric.length >= 2 ? <Sparkline points={numeric} />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Price history at {deal.merchant_name}</h3>
+          {verdictLine(deal.price_verdict, usual) && <p className="text-sm mb-2">{verdictLine(deal.price_verdict, usual)}</p>}
+          {points === null ? <div className="h-28 rounded bg-neutral-800 animate-pulse" />
+            : numeric.length >= 2 ? <PriceChart points={numeric} currentFrom={deal.valid_from} usual={usual} />
             : <p className="text-sm text-neutral-500">History builds up week by week. Check back after a few scans.</p>}
+          {cheaper.length > 0 &&
+            <p className="text-sm font-bold text-save mt-2">Cheaper this week: {cheaper.map(o => `${o.merchant_name} $${o.price.toFixed(2)}`).join(' · ')}</p>}
+          {cycleText(stats) && <p className="text-xs text-neutral-500 mt-2">{cycleText(stats)} (from {stats!.samples} weekly prices at {stats!.stores} store{stats!.stores === 1 ? '' : 's'}).</p>}
         </div>
 
         <div className="mt-6 grid grid-cols-[1fr_auto] gap-2.5">
           <button onClick={() => { onAddToList(deal); setDone('list') }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink text-white py-3 text-sm font-bold hover:bg-neutral-300 transition-colors">
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink text-on-ink py-3 text-sm font-bold hover:bg-neutral-300 transition-colors">
             <Icon name={done === 'list' ? 'check' : 'plus'} className="w-4 h-4" />{done === 'list' ? 'On your list' : 'Add to list'}
           </button>
           <button onClick={() => { onWatch(deal.name); setDone('watch') }}
@@ -235,47 +237,30 @@ async function shareDeal(deal: DealRecord): Promise<boolean> {
   } catch { return false } // share sheet dismissed / clipboard blocked
 }
 
-function Sparkline({ points }: { points: Array<{ valid_from: string; price: number }> }) {
-  const w = 280, h = 48, pad = 4
-  const prices = points.map(p => p.price)
-  const min = Math.min(...prices), max = Math.max(...prices)
-  const span = max - min || 1
-  const step = (w - pad * 2) / Math.max(points.length - 1, 1)
-  const coords = points.map((p, i) => `${pad + i * step},${h - pad - ((p.price - min) / span) * (h - pad * 2)}`)
+/** This store's sales on a real time axis, the deal's own week marked, the usual nearby price dashed. */
+function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; currentFrom: string | null; usual: number | null }) {
+  const { dots, usualY, dates, min, max } = layoutChart(points, currentFrom, usual)
+  const { w, h, left, right } = CHART
+  const cur = dots.find(d => d.current)
+  const label = `Prices from ${dates[0]?.label} to ${dates[1]?.label ?? dates[0]?.label}, low $${min.toFixed(2)}, high $${max.toFixed(2)}`
+    + (cur ? `, now $${cur.price.toFixed(2)}` : '') + (usual != null ? `, usual nearby $${usual.toFixed(2)}` : '')
+  const topY = Math.min(...dots.map(d => d.y)), bottomY = Math.max(...dots.map(d => d.y))
   return (
-    <div className="flex items-center gap-3">
-      <svg width={w} height={h} className="shrink-0">
-        <polyline points={coords.join(' ')} fill="none" stroke="#15201a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {coords.map((c, i) => {
-          const [x, y] = c.split(',').map(Number)
-          return <circle key={i} cx={x} cy={y} r="2.5" fill="#15201a" />
-        })}
-      </svg>
-      <div className="text-xs text-neutral-400 whitespace-nowrap">
-        <div>low <span className="text-emerald-400 font-medium">${min.toFixed(2)}</span></div>
-        <div>high <span className="text-neutral-300">${max.toFixed(2)}</span></div>
-      </div>
-    </div>
-  )
-}
-
-/** Where this week's price sits between the lowest sale seen around here and well above typical. */
-function PriceRange({ now, stats }: { now: number; stats: PriceStats }) {
-  const low = Number(stats.low), typical = Number(stats.median), good = Number(stats.p25)
-  const high = Math.max(typical * 1.5, now * 1.1, low + 0.01)
-  const pos = (v: number) => `${Math.min(100, Math.max(0, ((v - low) / (high - low)) * 100))}%`
-  const suffix = basisSuffix(stats.basis)
-  return (
-    <div className="mt-3" aria-label={`This week $${now.toFixed(2)}${suffix}; lowest seen $${low.toFixed(2)}; typical $${typical.toFixed(2)}`}>
-      <div className="relative h-2 rounded-full bg-neutral-800">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-save/70" style={{ width: pos(good) }} />
-        <div className="absolute -top-0.5 w-0.5 h-3 bg-neutral-500" style={{ left: pos(typical) }} />
-        <div className="absolute -top-1.5 -ml-[3px] w-1.5 h-5 rounded-full bg-ink ring-2 ring-neutral-950" style={{ left: pos(now) }} />
-      </div>
-      <div className="flex justify-between gap-2 mt-1.5 text-[11px] text-neutral-500 tabular-nums">
-        <span>Lowest seen ${low.toFixed(2)}{suffix}</span>
-        <span>Tick: typical ${typical.toFixed(2)}{suffix}</span>
-      </div>
-    </div>
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-md h-auto text-neutral-100 overflow-visible" role="img" aria-label={label}>
+      <text x={left - 6} y={topY + 3} textAnchor="end" className="fill-neutral-500 text-[9px] tabular-nums">${Math.max(...dots.map(d => d.price)).toFixed(2)}</text>
+      {bottomY - topY > 12 && <text x={left - 6} y={bottomY + 3} textAnchor="end" className="fill-neutral-500 text-[9px] tabular-nums">${Math.min(...dots.map(d => d.price)).toFixed(2)}</text>}
+      {usualY != null && usual != null && <>
+        <line x1={left} x2={w - right} y1={usualY} y2={usualY} stroke="currentColor" strokeOpacity={0.45} strokeDasharray="4 4" />
+        <text x={w - right} y={usualY - 4} textAnchor="end" className="fill-neutral-500 text-[9px]">usual nearby ${usual.toFixed(2)}</text>
+      </>}
+      <polyline points={dots.map(d => `${d.x},${d.y}`).join(' ')} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={2.5} fill="currentColor" />)}
+      {cur && <>
+        <circle cx={cur.x} cy={cur.y} r={5} className="fill-tag" stroke="currentColor" strokeWidth={2} />
+        {/* above the dot, unless that would run off the top; below would hit the date labels */}
+        <text x={cur.x} y={cur.y - 10 < CHART.top ? cur.y + 16 : cur.y - 10} textAnchor={cur.x > w - 60 ? 'end' : cur.x < left + 40 ? 'start' : 'middle'} className="fill-current text-[10px] font-bold">${cur.price.toFixed(2)} now</text>
+      </>}
+      {dates.map(d => <text key={d.anchor} x={d.x} y={h - 4} textAnchor={d.anchor} className="fill-neutral-500 text-[9px]">{d.label}</text>)}
+    </svg>
   )
 }

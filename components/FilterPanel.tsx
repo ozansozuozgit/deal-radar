@@ -7,7 +7,7 @@ interface Store { slug: string; name: string; distance_miles: number | null; log
 
 const label = 'text-xs font-bold uppercase tracking-wider text-neutral-500'
 const chip = (on: boolean) =>
-  `shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] border transition-colors ${on ? 'bg-ink border-ink text-white' : 'bg-card border-neutral-700 text-neutral-300 hover:border-neutral-500'}`
+  `shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] border transition-colors ${on ? 'bg-ink border-ink text-on-ink' : 'bg-card border-neutral-700 text-neutral-300 hover:border-neutral-500'}`
 
 /** Sort, week, my stores and categories. A sidebar on desktop, a bottom sheet on phones. */
 export function FilterPanel({ sorts, sort, onSort, upcoming, onUpcoming, stores, mySlugs, allMine, onToggleMine, storeFilter, onToggleFilter, categories, catSel, onToggleCat }: {
@@ -61,7 +61,7 @@ export function FilterPanel({ sorts, sort, onSort, upcoming, onUpcoming, stores,
                   <li key={s.slug}>
                     <label className="flex items-center gap-3 py-2 text-sm cursor-pointer">
                       <input type="checkbox" checked={on} onChange={() => onToggleMine(s.slug)}
-                        disabled={on && mySlugs.length === 1} className="w-5 h-5 accent-[#15201a]" />
+                        disabled={on && mySlugs.length === 1} className="w-5 h-5 accent-ink" />
                       <Img src={s.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-line" />
                       <span className="flex-1 min-w-0 truncate">{s.name}</span>
                       {s.distance_miles != null && <span className="text-xs text-neutral-500 tabular-nums">{s.distance_miles} mi</span>}

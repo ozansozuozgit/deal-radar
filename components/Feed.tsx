@@ -374,7 +374,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
         <nav className="flex flex-col gap-0.5" aria-label="Sections">
           {TABS.map(([value, label, icon]) => (
             <button key={value} onClick={() => setTab(value)} aria-current={tab === value ? 'page' : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] ${tab === value ? 'bg-ink text-white font-bold' : 'text-neutral-300 hover:bg-neutral-800'}`}>
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] ${tab === value ? 'bg-ink text-on-ink font-bold' : 'text-neutral-300 hover:bg-neutral-800'}`}>
               <Icon name={icon} />{label}
             </button>
           ))}
@@ -407,14 +407,14 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                 <button onClick={() => setFiltersOpen(true)} aria-label="Filters and my stores"
                   className="lg:hidden relative w-11 h-11 shrink-0 rounded-xl bg-card border border-line grid place-items-center">
                   <Icon name="sliders" />
-                  {filterCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-ink text-white text-[11px] font-bold grid place-items-center">{filterCount}</span>}
+                  {filterCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-ink text-on-ink text-[11px] font-bold grid place-items-center">{filterCount}</span>}
                 </button>
               </div>
               {activeChips.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
                   {activeChips.map(c => (
                     <button key={c.key} onClick={c.clear} aria-label={`Remove filter ${c.label}`}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-full bg-ink text-white pl-3 pr-2 py-1 text-xs">
+                      className="shrink-0 inline-flex items-center gap-1 rounded-full bg-ink text-on-ink pl-3 pr-2 py-1 text-xs">
                       {c.label}<Icon name="x" className="w-3 h-3" />
                     </button>
                   ))}
@@ -449,7 +449,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                 <button onClick={() => onOpenSetup('edit')}
                   className="mt-2 mr-2 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800">Change radius</button>
                 <button onClick={refreshNow} disabled={refreshState !== 'idle' && refreshState !== 'error'}
-                  className="mt-2 rounded-lg bg-ink text-white px-3 py-1.5 text-xs disabled:opacity-60">
+                  className="mt-2 rounded-lg bg-ink text-on-ink px-3 py-1.5 text-xs disabled:opacity-60">
                   {refreshState === 'done' ? 'Scan started. Check back in a few minutes' : 'Scan now'}
                 </button>
               </div>
@@ -528,7 +528,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                 {online ? <>Couldn&apos;t load deals.</> : <>You&apos;re offline, and these deals aren&apos;t saved on this device yet.</>}
                 <div>
                   <button onClick={() => { setResults(null); setRetry(n => n + 1) }}
-                    className="mt-3 rounded-xl bg-ink text-white px-4 py-2 text-sm">Try again</button>
+                    className="mt-3 rounded-xl bg-ink text-on-ink px-4 py-2 text-sm">Try again</button>
                 </div>
               </div>
             ) : loading && !loadingMore ? <SkeletonCards />
@@ -538,7 +538,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                   {hasFilters ? (
                     <div>
                       <button onClick={clearFilters}
-                        className="mt-3 rounded-xl bg-ink text-white px-4 py-2 text-sm">Clear filters</button>
+                        className="mt-3 rounded-xl bg-ink text-on-ink px-4 py-2 text-sm">Clear filters</button>
                     </div>
                   ) : <><br />Try widening your radius in settings.</>}
                 </div>
@@ -600,13 +600,13 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
             <div className="mx-auto w-10 h-1 rounded-full bg-neutral-700 mb-3" />
             {filterPanel}
             <button onClick={() => setFiltersOpen(false)}
-              className="sticky bottom-0 mt-5 w-full rounded-xl bg-ink text-white py-3 text-sm font-bold">Show deals</button>
+              className="sticky bottom-0 mt-5 w-full rounded-xl bg-ink text-on-ink py-3 text-sm font-bold">Show deals</button>
           </div>
         </div>
       )}
 
       {selected && (
-        <DealSheet deal={selected} onClose={() => setSelected(null)}
+        <DealSheet deal={selected} storeSlugs={mySlugs} onClose={() => setSelected(null)}
           onWatch={doWatch} onAddToList={doAddToList} onHide={code ? hideTerm : undefined} />
       )}
     </div>

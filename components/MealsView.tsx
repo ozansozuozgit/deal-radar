@@ -108,7 +108,7 @@ export function MealsView({ code, storeSlugs, onSearch }: {
               </span>each
             </label>
             <button onClick={() => plan([], 'all')} disabled={!!busy}
-              className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 font-medium disabled:opacity-50">
+              className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-on-ink px-4 py-2 font-medium disabled:opacity-50">
               {busy === 'all' ? 'Planning…' : dinners?.length ? '↻ New plan' : 'Plan my week'}
             </button>
           </div>
@@ -167,7 +167,7 @@ export function MealsView({ code, storeSlugs, onSearch }: {
                 include ingredients that aren’t on sale
               </label>
               <button onClick={addAll} disabled={!toAdd.size}
-                className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-medium disabled:opacity-50">
+                className="ml-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-on-ink px-4 py-2 text-sm font-medium disabled:opacity-50">
                 {added != null ? (added.queued ? `Saved ${added.n} — they’ll sync to your list when you’re back online` : `✓ Added ${added.n} to your list`) : `🛒 Add ${toAdd.size} ingredient${toAdd.size === 1 ? '' : 's'} to list`}
               </button>
             </div>

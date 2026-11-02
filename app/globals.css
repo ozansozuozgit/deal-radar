@@ -24,6 +24,10 @@
   --color-save: #0b7a3e;
   --color-urgent: #c8102e;
   --color-line: #dde1da;
+  --color-on-ink: #ffffff;     /* text on ink fills (buttons, active chips) */
+  --color-on-tag: #15201a;     /* text on yellow price tags, dark in both themes */
+  --color-badge: #15201a;      /* "Lowest since" badge */
+  --color-on-badge: #ffd60a;
 
   /*
    * The UI was written against a dark neutral scale (950 = page, 100 = text).
@@ -69,6 +73,68 @@
   --color-red-400: #c8102e;
 
   --animate-sheet-in: sheet-in 180ms ease-out;
+}
+
+/*
+ * Dark theme, following the phone's setting: the same green-black ink family.
+ * Flyer tiles stay light like paper so flyer prices stay readable; price tags stay
+ * yellow with dark text; the badge flips to yellow on dark.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d140f;
+    --ink: #eef1ec;
+    color-scheme: dark;
+
+    --color-paper: #0d140f;
+    --color-card: #15201a;
+    --color-tile: #f3f4f0;
+    --color-ink: #eef1ec;
+    --color-save: #4cc07f;
+    --color-urgent: #ff6b7a;
+    --color-line: #2f3a33;
+    --color-on-ink: #0d140f;
+    --color-badge: #ffd60a;
+    --color-on-badge: #15201a;
+
+    /* the scale the UI was written against: 950 = page, 100 = text */
+    --color-neutral-50: #fafbf8;
+    --color-neutral-100: #eef1ec;
+    --color-neutral-200: #dfe4dc;
+    --color-neutral-300: #c4cbc2;
+    --color-neutral-400: #b0b8af;
+    --color-neutral-500: #939d94;
+    --color-neutral-600: #6d776e;
+    --color-neutral-700: #3a463e;
+    --color-neutral-800: #233029;
+    --color-neutral-900: #15201a;
+    --color-neutral-950: #0d140f;
+
+    --color-emerald-300: #4cc07f;
+    --color-emerald-400: #eef1ec;
+    --color-emerald-500: #d3d8d0;
+    --color-emerald-600: #eef1ec;
+    --color-emerald-900: #173826;
+    --color-emerald-950: #10271a;
+
+    --color-sky-200: #c9dcf7;
+    --color-sky-300: #a8c6f2;
+    --color-sky-400: #8db6ee;
+    --color-sky-500: #4f7fc4;
+    --color-sky-700: #eef1ec;
+    --color-sky-800: #23395c;
+    --color-sky-900: #1a2b45;
+    --color-sky-950: #121d2e;
+
+    --color-amber-200: #ffd98a;
+    --color-amber-300: #4cc07f;
+    --color-amber-400: #4cc07f;
+    --color-amber-900: #4a3a07;
+    --color-amber-950: #2c2306;
+
+    --color-red-400: #ff6b7a;
+  }
+  .leaflet-container { background: #233029; }
 }
 
 @keyframes sheet-in {

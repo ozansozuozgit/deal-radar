@@ -5,17 +5,15 @@ export interface PriceStats {
   samples: number; stores: number; cycle_days: number | null; last_sale: string | null
 }
 
-export function basisSuffix(basis: string | null | undefined): string {
-  return basis === 'lb' ? '/lb' : basis === 'ct' ? ' each' : ''
-}
-
-export function verdictText(verdict: string | null | undefined, cmp: number | null | undefined, stats: PriceStats | null): string | null {
-  if (!verdict || !stats || cmp == null) return null
-  const typical = `$${Number(stats.median).toFixed(2)}${basisSuffix(stats.basis)}`
-  const now = `$${Number(cmp).toFixed(2)}${basisSuffix(stats.basis)}`
-  if (verdict === 'great') return `Great price. Stock up: sales around here are usually ${typical}, and this is ${now}.`
-  if (verdict === 'weak') return `Weak sale. It usually goes on sale for ${typical} around here (this is ${now}), so it's worth waiting.`
-  return `A normal sale price (usually ${typical} on sale around here).`
+/**
+ * One sentence for a deal that's clearly good or clearly weak, in the deal's own package
+ * price. A typical price needs no sentence: the chart's "usual nearby" line says it.
+ */
+export function verdictLine(verdict: string | null | undefined, usual: number | null): string | null {
+  if (usual == null) return null
+  if (verdict === 'great') return `Great price. It usually goes on sale for $${usual.toFixed(2)} around here.`
+  if (verdict === 'weak') return `Weak sale. It usually goes on sale for $${usual.toFixed(2)} around here, so it may be worth waiting.`
+  return null
 }
 
 /** "On sale about every 4 weeks; last seen 2 weeks ago" */
