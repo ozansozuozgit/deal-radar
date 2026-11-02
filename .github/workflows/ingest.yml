@@ -11,6 +11,10 @@ concurrency:
 
 jobs:
   ingest:
+    # This repo's own daily scan runs from a private repo (private logs, no 60-day
+    # schedule shutoff) that checks out this main; here the schedule only runs in forks.
+    # "Refresh now" (workflow_dispatch) still runs here.
+    if: github.event_name != 'schedule' || github.repository != 'ozansozuozgit/deal-radar'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
