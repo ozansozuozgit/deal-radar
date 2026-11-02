@@ -1,13 +1,14 @@
 // One-off: re-read package sizes for stored deals after a parser fix (2026-11-02: fluid
-// ounces became their own unit priced per gallon, and "1/2 Gal." stopped reading as 2 gal).
+// ounces became their own unit priced per gallon, and "1/2 Gal." stopped reading as 2 gal;
+// then "oz" on liquid products such as milk became fluid ounces).
 // Usage: npx tsx scripts/backfill-sizes.ts [--write]   (dry run without --write)
 import 'dotenv/config'
 import { fetchAll, getServiceClient } from '@/lib/db'
 import { comparablePrice } from '@/lib/ingest/upsert'
-import { parseSize, unitPrice } from '@/lib/parse/size'
+import { asLiquid, parseSize, unitPrice } from '@/lib/parse/size'
 
 interface Row {
-  id: number; name: string; description: string | null; unit: string | null; price: number | null
+  id: number; name: string; description: string | null; unit: string | null; price: number | null; canonical: string | null
   size_qty: number | null; size_unit: string | null; unit_price: number | null; cmp_price: number | null; cmp_basis: string | null
 }
 
@@ -15,12 +16,12 @@ async function main() {
   const write = process.argv.includes('--write')
   const db = getServiceClient()
   const rows = await fetchAll<Row>((from, to) => db.from('deals')
-    .select('id, name, description, unit, price, size_qty, size_unit, unit_price, cmp_price, cmp_basis')
+    .select('id, name, description, unit, price, canonical, size_qty, size_unit, unit_price, cmp_price, cmp_basis')
     .order('id').range(from, to), { max: 500_000 })
   const changes: Array<{ id: number; patch: Partial<Row> }> = []
   for (const r of rows) {
     // same rule as dealRow: per-lb deals are unit-priced already
-    const size = r.unit === 'lb' ? { qty: 1, unit: 'lb' as const } : parseSize(`${r.name} ${r.description ?? ''}`)
+    const size = r.unit === 'lb' ? { qty: 1, unit: 'lb' as const } : asLiquid(parseSize(`${r.name} ${r.description ?? ''}`), r.canonical)
     const next = {
       size_qty: size?.qty ?? null, size_unit: size?.unit ?? null,
       unit_price: unitPrice(r.price, size), ...comparablePrice(r.price, size),

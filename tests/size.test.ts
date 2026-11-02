@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { parseSize, unitPrice } from '@/lib/parse/size'
+import { asLiquid, parseSize, unitPrice } from '@/lib/parse/size'
 
 describe('parseSize', () => {
   test.each([
@@ -34,5 +34,14 @@ describe('unitPrice', () => {
     expect(unitPrice(null, { qty: 18, unit: 'oz' })).toBeNull()
     expect(unitPrice(5, null)).toBeNull()
     expect(unitPrice(5, { qty: 0, unit: 'oz' })).toBeNull()
+  })
+})
+
+describe('asLiquid', () => {
+  test('"64-oz." on milk is fluid ounces; on cheese it stays weight', () => {
+    expect(asLiquid(parseSize('Lactaid 64-oz. milk.'), 'milk')).toEqual({ qty: 64, unit: 'floz' })
+    expect(asLiquid(parseSize('Cheddar 8 oz'), 'cheddar')).toEqual({ qty: 8, unit: 'oz' })
+    expect(asLiquid(parseSize('Milk 1/2 gal'), 'milk')).toEqual({ qty: 64, unit: 'floz' })
+    expect(asLiquid(null, 'milk')).toBeNull()
   })
 })

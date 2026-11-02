@@ -85,7 +85,12 @@ export function ListView({ code, storeSlugs, stores, home }: {
           const fresh = (Array.isArray(d.deals) ? d.deals : []) as CompareDeal[]
           setDeals(fresh)
           writeJson(COMPARE_CACHE_KEY, fresh)
-          setStats(new Map(((d.stats ?? []) as PriceStats[]).map(st => [st.canonical, st])))
+          // stats come per product and basis; a list item has no basis, so keep the best-sampled one
+          const best = new Map<string, PriceStats>()
+          for (const st of (d.stats ?? []) as PriceStats[]) {
+            if ((best.get(st.canonical)?.samples ?? -1) < st.samples) best.set(st.canonical, st)
+          }
+          setStats(best)
         })
         // offline or server trouble: keep the last prices rather than claiming "no deal"
         .catch(() => { if (!ctrl.signal.aborted) setDeals(cur => cur ?? []) }), 200)

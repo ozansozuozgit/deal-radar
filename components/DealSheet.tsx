@@ -69,9 +69,9 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
     if (!deal.canonical) return
     const ctrl = new AbortController()
     fetch(`/api/stats?c=${encodeURIComponent(deal.canonical)}`, { signal: ctrl.signal })
-      .then(r => (r.ok ? r.json() : null)).then(d => setStats(d?.stats?.[0] ?? null)).catch(() => {})
+      .then(r => (r.ok ? r.json() : null)).then(d => setStats((d?.stats as PriceStats[] | undefined)?.find(s => s.basis === deal.cmp_basis) ?? null)).catch(() => {})
     return () => ctrl.abort()
-  }, [deal.canonical])
+  }, [deal.canonical, deal.cmp_basis])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
