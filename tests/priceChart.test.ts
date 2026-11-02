@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { CHART, layoutChart, usualPackagePrice } from '@/lib/priceChart'
+import { CHART, layoutChart, usualPackagePrice, wasCheaperNote } from '@/lib/priceChart'
 
 // Lactaid at Fairway, 2026
 const lactaid = [
@@ -50,4 +50,13 @@ test('the usual-nearby label sits away from the current dot', () => {
   expect(layoutChart(pears, '2026-10-29T00:00:00+00:00', 1.79).usualLabel).toEqual({ x: CHART.left, anchor: 'start' })
   expect(layoutChart(pears, '2026-08-27T00:00:00+00:00', 1.79).usualLabel).toEqual({ x: CHART.w - CHART.right, anchor: 'end' })
   expect(layoutChart(pears, null, null).usualLabel).toBeNull()
+})
+
+test('was-cheaper note: 15% or more above this store low, dated at the latest sale at that low', () => {
+  const pears = [['2026-08-27', 1.49], ['2026-09-24', 1.49], ['2026-10-01', 1.99], ['2026-10-29', 1.79]]
+    .map(([d, p]) => ({ valid_from: `${d}T00:00:00+00:00`, price: p as number }))
+  expect(wasCheaperNote(pears, 1.79)).toBe('Was $1.49 here on Sep 24 (17% less)')
+  expect(wasCheaperNote(pears, 1.69)).toBeNull()          // 13% above: not worth a warning
+  expect(wasCheaperNote(pears.slice(1), 1.79)).toBeNull() // fewer than four sales
+  expect(wasCheaperNote(lactaid, 4.99)).toBeNull()        // at its low
 })

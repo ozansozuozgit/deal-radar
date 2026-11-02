@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { dealSignal, historyScore, isHistoricalLow, isSteadyPrice, rankByHistory, usualPrice } from '@/lib/history'
+import { aboveStoreLow, dealSignal, historyScore, isHistoricalLow, isSteadyPrice, rankByHistory, usualPrice } from '@/lib/history'
 
 const base = { id: 1, price: 3.89 }
 
@@ -48,4 +48,15 @@ test('rank drops duplicates from merged queries', () => {
 test('typical price is ignored without a verdict', () => {
   const d = { id: 1, price: 5, cmp_price: 5, typical_price: 20 }
   expect(historyScore(d)).toBe(historyScore({ price: 5 }))
+})
+
+test('well above its own store low ranks below a deal at its low', () => {
+  // Bartlett pears at Fairway: $1.79 after $1.49, and a 28% claimed discount
+  const pears = { id: 1, price: 1.79, discount_pct: 28, hist_min_price: 1.49, hist_max_price: 1.99, hist_weeks: 4 }
+  const atLow = { id: 2, price: 3.99, discount_pct: 10, hist_min_price: 3.99, hist_max_price: 4.99, hist_weeks: 6 }
+  expect(aboveStoreLow(pears)).toBe(0.2)
+  expect(aboveStoreLow({ ...pears, price: 1.69 })).toBeNull()       // 13% above
+  expect(aboveStoreLow({ ...pears, hist_weeks: 3 })).toBeNull()      // too little history
+  expect(rankByHistory([pears, atLow]).map(d => d.id)).toEqual([2, 1])
+  expect(historyScore(pears)).toBeLessThan(historyScore({ ...pears, hist_min_price: 1.79 }))
 })

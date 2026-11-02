@@ -23,6 +23,7 @@
   --color-tag: #ffd60a;
   --color-save: #0b7a3e;
   --color-urgent: #c8102e;
+  --color-warn: #9a5b00;       /* a price worse than it has been: amber, not the red of "ending" */
   --color-line: #dde1da;
   --color-on-ink: #ffffff;     /* text on ink fills (buttons, active chips) */
   --color-on-tag: #15201a;     /* text on yellow price tags, dark in both themes */
@@ -92,6 +93,7 @@
     --color-ink: #eef1ec;
     --color-save: #4cc07f;
     --color-urgent: #ff6b7a;
+    --color-warn: #f0b35a;
     --color-line: #2f3a33;
     --color-on-ink: #0d140f;
     --color-badge: #ffd60a;
