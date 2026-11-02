@@ -12,12 +12,14 @@ export function flyerRow(f: FlyerInput) {
   }
 }
 
-/** A price that compares across package sizes: per lb for weights, per item for counts. */
+/** A price that compares across package sizes: per lb for weights, per gallon for liquids, per item for counts. */
 export function comparablePrice(price: number | null | undefined, size: Size | null): { cmp_price: number | null; cmp_basis: string | null } {
   if (price == null || price <= 0) return { cmp_price: null, cmp_basis: null }
   const r = (n: number) => Math.round(n * 100) / 100
   if (size?.unit === 'lb') return { cmp_price: r(price / size.qty), cmp_basis: 'lb' }
   if (size?.unit === 'oz') return { cmp_price: r((price / size.qty) * 16), cmp_basis: 'lb' }
+  if (size?.unit === 'floz') return { cmp_price: r((price / size.qty) * 128), cmp_basis: 'gal' }
+  if (size?.unit === 'l') return { cmp_price: r((price / size.qty) * 3.785), cmp_basis: 'gal' }
   if (size?.unit === 'ct') return { cmp_price: r(price / size.qty), cmp_basis: 'ct' }
   return { cmp_price: price, cmp_basis: 'ea' }
 }

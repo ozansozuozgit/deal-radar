@@ -58,8 +58,10 @@ test('a general item matches more specific canonical products', () => {
   expect(matchesForItem('cheese', deals).map(d => d.id)).toEqual([4])
 })
 
-test('comparablePrice normalizes to per lb or per count', () => {
+test('comparablePrice normalizes to per lb, per gallon or per count', () => {
   expect(comparablePrice(6, { qty: 3, unit: 'lb' })).toEqual({ cmp_price: 2, cmp_basis: 'lb' })
+  expect(comparablePrice(4.99, { qty: 64, unit: 'floz' })).toEqual({ cmp_price: 9.98, cmp_basis: 'gal' })
+  expect(comparablePrice(2.5, { qty: 2, unit: 'l' })).toEqual({ cmp_price: 4.73, cmp_basis: 'gal' })
   expect(comparablePrice(4, { qty: 32, unit: 'oz' })).toEqual({ cmp_price: 2, cmp_basis: 'lb' })
   expect(comparablePrice(3, { qty: 12, unit: 'ct' })).toEqual({ cmp_price: 0.25, cmp_basis: 'ct' })
   expect(comparablePrice(3, null)).toEqual({ cmp_price: 3, cmp_basis: 'ea' })
