@@ -10,7 +10,7 @@ export function Price({ value, unit, size = 'md', className = '' }: {
 }) {
   const [dollars, cents] = value.toFixed(2).split('.')
   return (
-    <span className={`inline-flex items-start bg-tag text-ink font-condensed font-extrabold leading-none tabular-nums ${SIZES[size]} ${className}`}
+    <span className={`inline-flex items-start bg-tag text-on-tag font-condensed font-extrabold leading-none tabular-nums ${SIZES[size]} ${className}`}
       aria-label={`$${value.toFixed(2)}${unit ? ` per ${unit}` : ''}`}>
       <span aria-hidden className="text-[0.5em] mt-[0.12em]">$</span>
       <span aria-hidden>{dollars}</span>

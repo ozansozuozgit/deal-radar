@@ -128,13 +128,13 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
                       : deal.discount_pct != null ? <span className="text-save font-bold text-sm">−{deal.discount_pct}%</span> : null}
                   </span>
                 </>
-              ) : <span className="bg-tag text-ink font-condensed font-extrabold rounded-md px-2 py-1 text-xl">{deal.sale_story ?? deal.price_text ?? 'See flyer price'}</span>}
+              ) : <span className="bg-tag text-on-tag font-condensed font-extrabold rounded-md px-2 py-1 text-xl">{deal.sale_story ?? deal.price_text ?? 'See flyer price'}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1 empty:hidden">
               {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
                 <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {SIZE_LABEL[deal.size_unit] ?? deal.size_unit}</span>}
               {isHistoricalLow(deal) &&
-                <span className="text-xs font-bold bg-ink text-tag rounded px-1.5 py-0.5">
+                <span className="text-xs font-bold bg-badge text-on-badge rounded px-1.5 py-0.5">
                   {shortDate(deal.hist_since) ? `Lowest price here since ${shortDate(deal.hist_since)}` : 'Lowest price here'}
                 </span>}
               {isSteadyPrice(deal) &&
@@ -176,7 +176,7 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
 
         <div className="mt-6 grid grid-cols-[1fr_auto] gap-2.5">
           <button onClick={() => { onAddToList(deal); setDone('list') }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink text-white py-3 text-sm font-bold hover:bg-neutral-300 transition-colors">
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink text-on-ink py-3 text-sm font-bold hover:bg-neutral-300 transition-colors">
             <Icon name={done === 'list' ? 'check' : 'plus'} className="w-4 h-4" />{done === 'list' ? 'On your list' : 'Add to list'}
           </button>
           <button onClick={() => { onWatch(deal.name); setDone('watch') }}
@@ -257,7 +257,8 @@ function PriceChart({ points, currentFrom, usual }: { points: ChartPoint[]; curr
       {dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={2.5} fill="currentColor" />)}
       {cur && <>
         <circle cx={cur.x} cy={cur.y} r={5} className="fill-tag" stroke="currentColor" strokeWidth={2} />
-        <text x={cur.x} y={cur.y + 16} textAnchor={cur.x > w - 60 ? 'end' : cur.x < left + 40 ? 'start' : 'middle'} className="fill-current text-[10px] font-bold">${cur.price.toFixed(2)} now</text>
+        {/* above the dot, unless that would run off the top; below would hit the date labels */}
+        <text x={cur.x} y={cur.y - 10 < CHART.top ? cur.y + 16 : cur.y - 10} textAnchor={cur.x > w - 60 ? 'end' : cur.x < left + 40 ? 'start' : 'middle'} className="fill-current text-[10px] font-bold">${cur.price.toFixed(2)} now</text>
       </>}
       {dates.map(d => <text key={d.anchor} x={d.x} y={h - 4} textAnchor={d.anchor} className="fill-neutral-500 text-[9px]">{d.label}</text>)}
     </svg>

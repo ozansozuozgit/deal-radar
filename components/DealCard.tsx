@@ -35,7 +35,7 @@ export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord;
         {deal.crop ? <FlyerCrop crop={deal.crop} alt={deal.name} boxRatio={compact ? 1.6 : 4 / 3} />
           : <Img src={deal.image_url} alt="" loading="lazy" className="w-full h-full object-contain mix-blend-multiply" fallback={<NoImage />} />}
         {signal && (
-          <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-ink text-tag px-1.5 py-0.5 text-[11px] font-bold leading-tight">
+          <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-badge text-on-badge px-1.5 py-0.5 text-[11px] font-bold leading-tight">
             {signal.kind === 'low' ? (shortDate(signal.since) ? `Lowest since ${shortDate(signal.since)}` : 'Lowest price') : 'Great price'}
           </span>
         )}
@@ -53,7 +53,7 @@ export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord;
             </span>
           </>
         ) : (deal.sale_story ?? deal.price_text) ? (
-          <span className="bg-tag text-ink font-condensed font-extrabold rounded-[4px] px-1.5 py-0.5 text-base leading-tight">{deal.sale_story ?? deal.price_text}</span>
+          <span className="bg-tag text-on-tag font-condensed font-extrabold rounded-[4px] px-1.5 py-0.5 text-base leading-tight">{deal.sale_story ?? deal.price_text}</span>
         ) : null}
       </div>
       {!compact && (
