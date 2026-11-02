@@ -10,6 +10,8 @@ import { basisSuffix, cycleText, verdictText, type PriceStats } from '@/lib/pric
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
 
+const SIZE_LABEL: Record<string, string> = { floz: 'fl oz', l: 'liter' }
+
 function itemLink(deal: DealRecord): { href: string; label: string } | null {
   const flyerId = (deal as unknown as { flyer_external_id?: string | null }).flyer_external_id
   switch ((deal as unknown as { source?: string }).source) {
@@ -123,7 +125,7 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-1 empty:hidden">
               {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
-                <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {deal.size_unit}</span>}
+                <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {SIZE_LABEL[deal.size_unit] ?? deal.size_unit}</span>}
               {isHistoricalLow(deal) &&
                 <span className="text-xs font-bold bg-ink text-tag rounded px-1.5 py-0.5">
                   {shortDate(deal.hist_since) ? `Lowest price here since ${shortDate(deal.hist_since)}` : 'Lowest price here'}

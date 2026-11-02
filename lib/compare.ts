@@ -103,7 +103,7 @@ export function pickFor(deal: CompareDeal, qty = 1, unit: QtyUnit | string | nul
       packs = want.base === 'oz' ? want.amount / 16 : qty
     } else if (deal.size_qty && deal.size_unit) {
       const have = deal.size_unit === 'lb' ? { amount: deal.size_qty * 16, base: 'oz' }
-        : deal.size_unit === 'oz' ? { amount: deal.size_qty, base: 'oz' }
+        : deal.size_unit === 'oz' || deal.size_unit === 'floz' ? { amount: deal.size_qty, base: 'oz' }
         : deal.size_unit === 'l' ? { amount: deal.size_qty, base: 'l' } : null
       // deal sizes and list amounts may mix metric and imperial volume; compare in ounces
       const oz = (v: { amount: number; base: string }) => (v.base === 'l' ? v.amount * L_TO_OZ : v.amount)

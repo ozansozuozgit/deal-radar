@@ -4,15 +4,20 @@ import { parseSize, unitPrice } from '@/lib/parse/size'
 describe('parseSize', () => {
   test.each([
     ['Blueberries, 18 oz', { qty: 18, unit: 'oz' }],
-    ['10.7 to 14.7-fl. oz. pkg., Any Variety', { qty: 14.7, unit: 'oz' }],   // range → max
+    ['10.7 to 14.7-fl. oz. pkg., Any Variety', { qty: 14.7, unit: 'floz' }],   // range → max
     ['PEPSI SODA 2-LITER', { qty: 2, unit: 'l' }],
     ['1-lb. bag', { qty: 1, unit: 'lb' }],
     ['12 ct', { qty: 12, unit: 'ct' }],
     ['6 pk', { qty: 6, unit: 'ct' }],
-    ['16 fl oz bottle', { qty: 16, unit: 'oz' }],
-    ['1 gallon', { qty: 128, unit: 'oz' }],
+    ['16 fl oz bottle', { qty: 16, unit: 'floz' }],
+    ['1 gallon', { qty: 128, unit: 'floz' }],
     ['32-oz. cont., Any Variety', { qty: 32, unit: 'oz' }],
-    ['Half Gallon', { qty: 64, unit: 'oz' }],
+    ['Half Gallon', { qty: 64, unit: 'floz' }],
+    ['Fat Free, 2% or Whole 1/2 Gal. Cntr.', { qty: 64, unit: 'floz' }],  // was read as "2 Gal."
+    ['52 to 64-fl. oz. cont., Any Variety', { qty: 64, unit: 'floz' }],
+    ['3/4 lb', { qty: 0.75, unit: 'lb' }],
+    ['12/12 oz cans', { qty: 12, unit: 'oz' }],   // a 12-pack, not 1 oz
+    ['2/$5', null],
     ['2-lb. pkg.', { qty: 2, unit: 'lb' }],
     ['500 ml', { qty: 0.5, unit: 'l' }],
     ['no size here', null],
