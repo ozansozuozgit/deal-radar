@@ -4,15 +4,25 @@ export interface HistoryFields {
   price: number | null
   unit?: string | null
   discount_pct?: number | null
-  hist_min_price?: number | null; hist_weeks?: number | null
+  hist_min_price?: number | null; hist_max_price?: number | null
+  hist_weeks?: number | null; hist_since?: string | null
   cmp_price?: number | null; cmp_basis?: string | null
   typical_price?: number | null; price_verdict?: string | null
 }
 
-/** At or below the lowest price this store has charged, over at least a month of flyers. */
+/**
+ * At or below the lowest price this store has charged, over at least four sales, and
+ * the store has charged more at some point; a price that never changes isn't a low.
+ */
 export function isHistoricalLow(deal: HistoryFields): boolean {
-  return deal.price != null && deal.hist_min_price != null
-    && (deal.hist_weeks ?? 0) >= 4 && deal.price <= deal.hist_min_price
+  return deal.price != null && deal.hist_min_price != null && deal.hist_max_price != null
+    && (deal.hist_weeks ?? 0) >= 4 && deal.price <= deal.hist_min_price && deal.price < deal.hist_max_price
+}
+
+/** The same price at every one of at least four sales here: worth saying, but not a low. */
+export function isSteadyPrice(deal: HistoryFields): boolean {
+  return deal.price != null && deal.hist_min_price != null && deal.hist_max_price != null
+    && (deal.hist_weeks ?? 0) >= 4 && deal.price === deal.hist_min_price && deal.price === deal.hist_max_price
 }
 
 /**
@@ -28,9 +38,9 @@ export function usualPrice(deal: HistoryFields): number | null {
 }
 
 /** The one badge a card shows, strongest first. */
-export type Signal = { kind: 'low'; weeks: number } | { kind: 'great' } | null
+export type Signal = { kind: 'low'; since: string | null } | { kind: 'great' } | null
 export function dealSignal(deal: HistoryFields): Signal {
-  if (isHistoricalLow(deal)) return { kind: 'low', weeks: deal.hist_weeks ?? 0 }
+  if (isHistoricalLow(deal)) return { kind: 'low', since: deal.hist_since ?? null }
   if (deal.price_verdict === 'great') return { kind: 'great' }
   return null
 }

@@ -1,12 +1,19 @@
 import { expect, test } from 'vitest'
-import { dealSignal, historyScore, isHistoricalLow, rankByHistory, usualPrice } from '@/lib/history'
+import { dealSignal, historyScore, isHistoricalLow, isSteadyPrice, rankByHistory, usualPrice } from '@/lib/history'
 
 const base = { id: 1, price: 3.89 }
 
-test('historical low needs a month of history', () => {
-  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_weeks: 12 })).toBe(true)
-  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_weeks: 2 })).toBe(false)
-  expect(isHistoricalLow({ ...base, hist_min_price: 3.49, hist_weeks: 12 })).toBe(false)
+test('historical low needs four sales and a higher price at some point', () => {
+  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_max_price: 4.99, hist_weeks: 12 })).toBe(true)
+  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_max_price: 4.99, hist_weeks: 2 })).toBe(false)
+  expect(isHistoricalLow({ ...base, hist_min_price: 3.49, hist_max_price: 4.99, hist_weeks: 12 })).toBe(false)
+  // the same price every sale is steady, not a low
+  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_max_price: 3.89, hist_weeks: 12 })).toBe(false)
+  expect(isSteadyPrice({ ...base, hist_min_price: 3.89, hist_max_price: 3.89, hist_weeks: 12 })).toBe(true)
+  expect(isSteadyPrice({ ...base, hist_min_price: 3.89, hist_max_price: 3.89, hist_weeks: 3 })).toBe(false)
+  expect(isSteadyPrice({ ...base, hist_min_price: 3.89, hist_max_price: 4.99, hist_weeks: 12 })).toBe(false)
+  // rows not yet refreshed have no max: no badge either way
+  expect(isHistoricalLow({ ...base, hist_min_price: 3.89, hist_weeks: 12 })).toBe(false)
 })
 
 test('usual price only on the same basis and above the deal', () => {
@@ -19,14 +26,16 @@ test('usual price only on the same basis and above the deal', () => {
 })
 
 test('one signal per deal, record low first', () => {
-  expect(dealSignal({ ...base, hist_min_price: 3.89, hist_weeks: 8, price_verdict: 'great' })).toEqual({ kind: 'low', weeks: 8 })
+  expect(dealSignal({ ...base, hist_min_price: 3.89, hist_max_price: 4.5, hist_weeks: 8, hist_since: '2026-07-24T04:00:00+00:00', price_verdict: 'great' }))
+    .toEqual({ kind: 'low', since: '2026-07-24T04:00:00+00:00' })
+  expect(dealSignal({ ...base, hist_min_price: 3.89, hist_max_price: 3.89, hist_weeks: 8, price_verdict: 'great' })).toEqual({ kind: 'great' })
   expect(dealSignal({ ...base, price_verdict: 'great' })).toEqual({ kind: 'great' })
   expect(dealSignal({ ...base, discount_pct: 60 })).toBeNull()
 })
 
 test('history beats a big claimed discount', () => {
   const inflated = { id: 1, price: 5, discount_pct: 60, price_verdict: 'weak', cmp_price: 5, typical_price: 4 }
-  const recordLow = { id: 2, price: 2, discount_pct: 15, hist_min_price: 2, hist_weeks: 10 }
+  const recordLow = { id: 2, price: 2, discount_pct: 15, hist_min_price: 2, hist_max_price: 3, hist_weeks: 10 }
   const great = { id: 3, price: 3, discount_pct: 20, price_verdict: 'great', cmp_price: 3, typical_price: 4.5 }
   expect(historyScore(recordLow)).toBeGreaterThan(historyScore(inflated))
   expect(rankByHistory([inflated, great, recordLow]).map(d => d.id).at(-1)).toBe(1)

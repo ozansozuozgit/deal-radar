@@ -21,6 +21,16 @@ export function timeAgo(iso: string | null | undefined, now: number = Date.now()
   return `${Math.floor(h / 24)}d ago`
 }
 
+/** Short calendar date for "since" labels: "Jul 24", plus the year once it's a different year. */
+export function shortDate(iso: string | null | undefined, now: number = Date.now()): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (!Number.isFinite(+d)) return null
+  // flyer dates are calendar days stored at midnight UTC or ET, so read them in UTC
+  const otherYear = d.getUTCFullYear() !== new Date(now).getUTCFullYear()
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC', ...(otherYear && { year: 'numeric' }) })
+}
+
 /** Hours elapsed since `iso`, or null for a missing/unparseable date. */
 export function hoursSince(iso: string | null | undefined, now: number = Date.now()): number | null {
   if (!iso) return null

@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { isHistoricalLow, type DealRecord } from './DealCard'
+import { isHistoricalLow, isSteadyPrice, type DealRecord } from './DealCard'
 import { FlyerCrop } from './FlyerCrop'
 import { Img, NoImage } from './Img'
 import { Icon } from './Icon'
 import { Price } from './Price'
-import { daysLeft as daysUntil } from '@/lib/dates'
+import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { basisSuffix, cycleText, verdictText, type PriceStats } from '@/lib/priceCheck'
 
 interface HistoryPoint { valid_from: string | null; price: number | null; original_price: number | null }
@@ -125,7 +125,13 @@ export function DealSheet({ deal, onClose, onWatch, onAddToList, onHide }: {
               {deal.unit_price != null && deal.unit !== 'lb' && deal.size_unit &&
                 <span className="text-xs text-neutral-400">${deal.unit_price.toFixed(2)} per {deal.size_unit}</span>}
               {isHistoricalLow(deal) &&
-                <span className="text-xs font-bold bg-ink text-tag rounded px-1.5 py-0.5">Lowest price here in {deal.hist_weeks} weeks</span>}
+                <span className="text-xs font-bold bg-ink text-tag rounded px-1.5 py-0.5">
+                  {shortDate(deal.hist_since) ? `Lowest price here since ${shortDate(deal.hist_since)}` : 'Lowest price here'}
+                </span>}
+              {isSteadyPrice(deal) &&
+                <span className="text-xs text-neutral-400">
+                  Same ${deal.price!.toFixed(2)} at all {deal.hist_weeks} sales here{shortDate(deal.hist_since) ? ` since ${shortDate(deal.hist_since)}` : ''}
+                </span>}
             </div>
             {deal.prime_price != null && <div className="text-sm text-sky-300 mt-1">${deal.prime_price.toFixed(2)} with Prime</div>}
             <div className="text-sm text-neutral-400 mt-2.5">
