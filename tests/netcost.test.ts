@@ -114,7 +114,7 @@ test('multipacks are counted from the name', () => {
   for (const [name, count] of [
     ['Roasted Seaweed 6 ct', 6], ['Juice Drink 8pk - 1.4L', 8], ['Lager Beer 4-Pack - 500mL Cans', 4],
     ['Classic Lager - 12 Bottles', 12], ['Juice Drink - 8 Boxes', 8], ['Pudding Cups - 6x113g', 6],
-    ['6 Banana & 6 Strawberry Smoothies', 12], ['Green Tea 15 ct', 15],
+    ['6 Banana & 6 Strawberry Smoothies', 12], ['6 Mixed Berry and 6 Strawberry Smoothies', 12], ['Green Tea 15 ct', 15],
   ] as const) expect(packCount(name), name).toBe(count)
   for (const name of ['Shredded Cheese 1 pk', '6 Mini Wafer Cakes - 180g', '24 Clear Spoons', 'Milk - 1.89L', 'Bread']) {
     expect(packCount(name), name).toBeNull()
@@ -134,4 +134,9 @@ test('a count in a name without a pack word still uses the package weight', () =
 test('milliliters and packs convert too', () => {
   expect(netcostSize({ name: 'x', weight: 500, unit: 'ml' })).toEqual({ qty: 0.5, unit: 'l' })
   expect(netcostSize({ name: 'x', weight: 10, unit: 'pack' })).toEqual({ qty: 10, unit: 'ct' })
+})
+
+test("the store's ounces stay weight, even when the name matches a liquid product", () => {
+  const row = dealRow(mapNetcostSpecial({ ...packaged, name: 'Traditional Water Crackers', sale: 3.49, weight: 4, unit: 'Oz' })!, 1)
+  expect(row).toMatchObject({ canonical: 'water', size_unit: 'oz', cmp_basis: 'lb', cmp_price: 13.96 })
 })

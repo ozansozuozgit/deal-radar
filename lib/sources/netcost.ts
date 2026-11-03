@@ -42,7 +42,7 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000
 
 /** How many items a multipack holds, from names like "6 ct", "8pk", "4-Pack", "12 Bottles", "6x113g", "6 Banana & 6 Strawberry". */
 export function packCount(name: string): number | null {
-  const mixed = /^(\d+)\s.*&\s*(\d+)\s/.exec(name)
+  const mixed = /^(\d+)\s.*(?:&|\band\b)\s*(\d+)\s/.exec(name)
   if (mixed) return Number(mixed[1]) + Number(mixed[2])
   const m = /(\d+)[\s-]*(?:ct|pk|packs?|count|bottles|cans|boxes)\b/i.exec(name) ?? /\b(\d+)\s*x\s*\d/i.exec(name)
   return m && Number(m[1]) > 1 ? Number(m[1]) : null
