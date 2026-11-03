@@ -4,6 +4,7 @@ export interface Prefs {
   address: string; lat: number; lng: number; zip: string
   radiusMiles: number; enabledStores: string[] | null  // null = all
   label?: string                                       // saved place name, e.g. "Home"
+  deliveryOff?: string[]                               // delivery stores you unticked; the rest stay on
 }
 
 export const PREFS_KEY = 'deal-radar-prefs-v1'
@@ -24,6 +25,8 @@ export function parsePrefs(raw: unknown): Prefs | null {
     enabledStores: Array.isArray(p.enabledStores) && p.enabledStores.length
       && p.enabledStores.every(s => typeof s === 'string') ? p.enabledStores as string[] : null,
     ...(typeof p.label === 'string' && p.label.trim() ? { label: p.label.trim().slice(0, 40) } : {}),
+    ...(Array.isArray(p.deliveryOff) && p.deliveryOff.length && p.deliveryOff.every(s => typeof s === 'string')
+      ? { deliveryOff: p.deliveryOff as string[] } : {}),
   }
 }
 

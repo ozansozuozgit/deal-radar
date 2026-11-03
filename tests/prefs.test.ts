@@ -25,3 +25,9 @@ test('a saved store filter survives only in a usable shape', () => {
   expect(parseStoreFilter(['netcost', 3, ''])).toEqual(['netcost'])
   for (const bad of [null, 'netcost', 42, {}, [], [1]]) expect(parseStoreFilter(bad)).toBeNull()
 })
+
+test('unticked delivery stores survive saving, and bad values are dropped', () => {
+  expect(parsePrefs({ ...good, deliveryOff: ['netcost'] })?.deliveryOff).toEqual(['netcost'])
+  expect(parsePrefs({ ...good, deliveryOff: 'netcost' })).not.toHaveProperty('deliveryOff')
+  expect(parsePrefs({ ...good, deliveryOff: [1] })).not.toHaveProperty('deliveryOff')
+})

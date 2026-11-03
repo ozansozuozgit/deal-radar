@@ -113,6 +113,7 @@ export function SetupCard({ initial, onDone, onCancel, adding = false }: {
         // keep store picks unless the location itself changed; read them fresh, since
         // the feed saves chip changes to storage without updating `initial`
         enabledStores: saved && saved.lat === s.lat && saved.lng === s.lng ? saved.enabledStores : null,
+        deliveryOff: saved?.deliveryOff,
       }
       savePrefs(prefs)
       await savePlace(prefs)

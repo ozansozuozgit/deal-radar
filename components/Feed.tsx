@@ -16,6 +16,7 @@ import { createCode, initialCode } from '@/lib/client/sync'
 import { currentPushStatus, enablePush, linkPush, type PushStatus } from '@/lib/client/push'
 import { pricePerLb } from '@/lib/compare'
 import { loadStoreFilter, saveStoreFilter, type Prefs } from '@/lib/client/prefs'
+import { isDeliveryStore, myStores, nextDeliveryOff } from '@/lib/stores/delivery'
 import { Icon, type IconName } from './Icon'
 import { FilterPanel } from './FilterPanel'
 import { hoursSince, timeAgo } from '@/lib/dates'
@@ -94,7 +95,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
     setPlacesOpen(false)
     onChangePrefs({
       address: p.address, lat: p.lat, lng: p.lng, zip: p.zip ?? prefs.zip,
-      radiusMiles: Number(p.radius_miles), label: p.label, enabledStores: prefs.enabledStores,
+      radiusMiles: Number(p.radius_miles), label: p.label, enabledStores: prefs.enabledStores, deliveryOff: prefs.deliveryOff,
     })
   }
   function deletePlace(p: SavedPlace) {
@@ -193,15 +194,14 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   }, [openUrl, openDealById])
 
   const inRadius = useMemo(() =>
-    (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles),
+    // delivery stores have no distance to sort by, so they'd land last; show them first
+    (meta?.stores ?? []).filter(s => s.distance_miles == null || s.distance_miles <= prefs.radiusMiles)
+      .sort((a, b) => Number(isDeliveryStore(b.slug)) - Number(isDeliveryStore(a.slug))),
     [meta, prefs.radiusMiles])
   const inRadiusSlugs = useMemo(() => inRadius.map(s => s.slug), [inRadius])
   // "my stores": the ones you actually shop at, used everywhere (feed, For you, list, meals).
   // Saved picks can point at stores that are out of radius here; if none are left, use all.
-  const mine = useMemo(() => {
-    const picked = prefs.enabledStores ? inRadius.filter(s => prefs.enabledStores!.includes(s.slug)) : []
-    return picked.length ? picked : inRadius
-  }, [inRadius, prefs.enabledStores])
+  const mine = useMemo(() => myStores(inRadius, prefs.enabledStores, prefs.deliveryOff), [inRadius, prefs.enabledStores, prefs.deliveryOff])
   const mySlugs = useMemo(() => mine.map(s => s.slug), [mine])
   // saved picks can point at stores that are out of radius here or gone; ignore those, but
   // keep them saved for when you switch back to a place that has them
@@ -214,7 +214,11 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
     const base = [...(prefs.enabledStores ?? []).filter(s => !inRadiusSlugs.includes(s)), ...mySlugs]
     const next = base.includes(slug) ? base.filter(s => s !== slug) : [...base, slug]
     if (!next.some(s => inRadiusSlugs.includes(s))) return // keep at least one
-    onChangePrefs({ ...prefs, enabledStores: inRadiusSlugs.every(s => next.includes(s)) ? null : next })
+    onChangePrefs({
+      ...prefs,
+      enabledStores: inRadiusSlugs.every(s => next.includes(s)) ? null : next,
+      deliveryOff: nextDeliveryOff(slug, next, prefs.deliveryOff),
+    })
     setStoreFilter(cur => cur?.filter(s => next.includes(s)) || null)
   }
 
