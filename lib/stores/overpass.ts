@@ -60,7 +60,8 @@ export async function syncStores(loc: LocationConfig, logos?: Map<string, string
   const db = getServiceClient()
   const { data: merchants } = await db.from('flyers').select('merchant_slug, merchant_name, source')
   if (!merchants?.length) return
-  const unique = new Map(merchants.map(m => [m.merchant_slug, m]))
+  // delivery stores have no nearby branch to find; a distance would hide them by radius
+  const unique = new Map(merchants.filter(m => m.source !== 'netcost').map(m => [m.merchant_slug, m]))
 
   // Upsert names/logos first so they survive even when Overpass is down.
   if (logos?.size && !branchesOnly) {

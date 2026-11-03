@@ -5,6 +5,7 @@ import { FlyerCrop } from './FlyerCrop'
 import { Img, NoImage } from './Img'
 import { Icon } from './Icon'
 import { Price } from './Price'
+import { whereLabel } from '@/lib/stores/delivery'
 import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { cycleText, verdictLine, type PriceStats } from '@/lib/priceCheck'
 import { CHART, layoutChart, usualPackagePrice, wasCheaperNote, type ChartPoint } from '@/lib/priceChart'
@@ -23,6 +24,8 @@ function itemLink(deal: DealRecord): { href: string; label: string } | null {
       return { href: `https://www.wholefoodsmarket.com/search?text=${encodeURIComponent(deal.name)}`, label: 'View on wholefoodsmarket.com' }
     case 'fairway':
       return { href: 'https://www.fairwaymarket.com/sm/planning/rsid/4000/circulars', label: 'View Fairway circular' }
+    case 'netcost':
+      return { href: 'https://www.shop.netcostmarket.com/specials', label: 'View NetCost specials' }
     default:
       return null
   }
@@ -147,7 +150,7 @@ export function DealSheet({ deal, storeSlugs, onClose, onWatch, onAddToList, onH
             {deal.prime_price != null && <div className="text-sm text-sky-300 mt-1">${deal.prime_price.toFixed(2)} with Prime</div>}
             <div className="text-sm text-neutral-400 mt-2.5">
               <Img src={deal.merchant_logo} alt="" className="inline w-4 h-4 mr-1.5 -mt-0.5 rounded-full bg-white object-contain border border-line" />
-              {deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}
+              {deal.merchant_name}{whereLabel(deal.merchant_slug, deal.distance_miles)}
               {daysLeft != null && <> · <span className={daysLeft <= 1 ? 'text-urgent font-bold' : ''}>{daysLeft === 0 ? 'ends today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}</span></>}
             </div>
             <div className="flex items-center gap-4 flex-wrap mt-2">

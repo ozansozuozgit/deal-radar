@@ -4,6 +4,7 @@ import { Img, NoImage } from './Img'
 import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { dealSignal, usualPrice } from '@/lib/history'
 import { Price } from './Price'
+import { whereLabel } from '@/lib/stores/delivery'
 
 export interface DealRecord {
   id: number; name: string; description: string | null
@@ -60,7 +61,7 @@ export function DealCard({ deal, onClick, compact = false }: { deal: DealRecord;
         <div className="flex items-center justify-between text-xs text-neutral-500 gap-1">
           <span className="inline-flex items-center gap-1.5 min-w-0">
             <Img src={deal.merchant_logo} alt="" className="w-4 h-4 rounded-full object-contain bg-white border border-line shrink-0" />
-            <span className="truncate">{deal.merchant_name}{deal.distance_miles != null ? ` · ${deal.distance_miles} mi` : ''}</span>
+            <span className="truncate">{deal.merchant_name}{whereLabel(deal.merchant_slug, deal.distance_miles)}</span>
           </span>
           {daysLeft != null && <span className={`shrink-0 ${daysLeft <= 1 ? 'text-urgent font-bold' : ''}`}>{daysLeft === 0 ? 'Ends today' : daysLeft === 1 ? 'Ends tomorrow' : `${daysLeft}d left`}</span>}
         </div>

@@ -1,4 +1,4 @@
-export type SourceId = 'flipp' | 'wholefoods' | 'fairway'
+export type SourceId = 'flipp' | 'wholefoods' | 'fairway' | 'netcost'
 
 export interface LocationConfig {
   address: string
@@ -21,6 +21,8 @@ export interface FlyerInput {
   raw?: unknown              // source-specific payload fetchDeals may need
 }
 
+import type { Size } from '@/lib/parse/size'
+
 export interface CropRect { image: string; x: number; y: number; w: number; h: number } // percents
 
 export interface DealInput {
@@ -33,6 +35,7 @@ export interface DealInput {
   originalPrice?: number | null
   primePrice?: number | null     // Whole Foods only
   unit?: 'ea' | 'lb' | null
+  size?: Size | null             // when the store says, instead of reading the name
   priceText?: string | null      // raw text when numeric parse failed
   saleStory?: string | null      // "20% off", "$2.00 off", "B1G1 50% off"
   category: string
