@@ -1,4 +1,4 @@
-import { readJson, writeJson } from './storage'
+import { readJson, writeJson, writeString } from './storage'
 
 export interface Prefs {
   address: string; lat: number; lng: number; zip: string
@@ -29,3 +29,18 @@ export function parsePrefs(raw: unknown): Prefs | null {
 
 export function loadPrefs(): Prefs | null { return parsePrefs(readJson<unknown>(PREFS_KEY, null)) }
 export function savePrefs(p: Prefs): void { writeJson(PREFS_KEY, p) }
+
+export const STORE_FILTER_KEY = 'deal-radar-store-filter-v1'
+
+/** The stores picked as filters in the feed; anything malformed means no filter. */
+export function parseStoreFilter(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null
+  const slugs = raw.filter((s): s is string => typeof s === 'string' && !!s)
+  return slugs.length ? slugs : null
+}
+
+export function loadStoreFilter(): string[] | null { return parseStoreFilter(readJson<unknown>(STORE_FILTER_KEY, null)) }
+export function saveStoreFilter(slugs: string[] | null): void {
+  if (slugs?.length) writeJson(STORE_FILTER_KEY, slugs)
+  else writeString(STORE_FILTER_KEY, null)
+}

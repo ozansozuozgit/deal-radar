@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { parsePrefs } from '@/lib/client/prefs'
+import { parsePrefs, parseStoreFilter } from '@/lib/client/prefs'
 
 const good = { address: '1 Main St', lat: 40.7, lng: -73.9, zip: '10001', radiusMiles: 2, enabledStores: ['aldi'] }
 
@@ -18,4 +18,10 @@ test('repairs the rest with safe defaults', () => {
     address: 'My location', lat: 1, lng: 2, zip: '', radiusMiles: 1.5, enabledStores: null,
   })
   expect(parsePrefs({ ...good, enabledStores: [] })?.enabledStores).toBeNull()
+})
+
+test('a saved store filter survives only in a usable shape', () => {
+  expect(parseStoreFilter(['netcost', 'fairway'])).toEqual(['netcost', 'fairway'])
+  expect(parseStoreFilter(['netcost', 3, ''])).toEqual(['netcost'])
+  for (const bad of [null, 'netcost', 42, {}, [], [1]]) expect(parseStoreFilter(bad)).toBeNull()
 })

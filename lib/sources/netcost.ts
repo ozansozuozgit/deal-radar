@@ -55,6 +55,12 @@ export function packCount(name: string): number | null {
 export function netcostSize(s: Pick<NetcostSpecial, 'name' | 'weight' | 'unit'>): Size | null {
   const pack = packCount(s.name)
   if (pack) return { qty: pack, unit: 'ct' }
+  const grams = /(\d+(?:\.\d+)?)\s*(kg|g)\b/i.exec(s.name)
+  const fromGrams: Size | null = grams
+    ? { qty: round3((Number(grams[1]) * (grams[2].toLowerCase() === 'kg' ? 1000 : 1)) / GRAMS_PER_OZ), unit: 'oz' }
+    : null
+  // some solids are listed in fluid ounces; a name that says grams settles it
+  if (fromGrams && s.unit?.toLowerCase() === 'fl oz') return fromGrams
   const qty = Number(s.weight)
   if (s.weight != null && qty > 0) {
     switch (s.unit?.toLowerCase()) {
@@ -69,9 +75,7 @@ export function netcostSize(s: Pick<NetcostSpecial, 'name' | 'weight' | 'unit'>)
       case 'ct': case 'pk': case 'pack': return { qty, unit: 'ct' }
     }
   }
-  const grams = /(\d+(?:\.\d+)?)\s*(kg|g)\b/i.exec(s.name)
-  if (grams) return { qty: round3((Number(grams[1]) * (grams[2].toLowerCase() === 'kg' ? 1000 : 1)) / GRAMS_PER_OZ), unit: 'oz' }
-  return parseSize(s.name)
+  return fromGrams ?? parseSize(s.name)
 }
 
 // the feed has values like 2.4899999999999998
