@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { readFileSync } from 'fs'
 import { dealRow } from '@/lib/ingest/upsert'
-import { mapNetcostImport, mapNetcostSpecial, netcostBookmarklet, netcostSize, type NetcostSpecial } from '@/lib/sources/netcost'
+import { mapNetcostImport, mapNetcostSpecial, netcostBookmarklet, netcostSize, packCount, type NetcostSpecial } from '@/lib/sources/netcost'
 
 const packaged: NetcostSpecial = {
   id: 12496293, name: 'Pepper Kabanosy (Pork) - 120g', tag: 'Only $3.99',
@@ -53,7 +53,7 @@ test('with no store size, grams in the name still count', () => {
 })
 
 test("the store's size wins over a per-box size in the name", () => {
-  const deal = mapNetcostSpecial({ ...packaged, name: '177ml Organic Super Fruitpunch Juice Drink - 8 Boxes', sale: 3.99, weight: 48, unit: 'fl oz' })!
+  const deal = mapNetcostSpecial({ ...packaged, name: '177ml Organic Juice Drink', sale: 3.99, weight: 48, unit: 'fl oz' })!
   expect(dealRow(deal, 1)).toMatchObject({ size_qty: 48, size_unit: 'floz', cmp_basis: 'gal', cmp_price: 10.64 })
 })
 
@@ -108,4 +108,30 @@ test('samples compare by the right basis', () => {
   expect(rowFor('Seeded Bread')).toMatchObject({ size_unit: 'oz', cmp_basis: 'lb', cmp_price: 3.3 })
   expect(rowFor('Avocado - 1pc')).toMatchObject({ cmp_basis: 'ct', cmp_price: 0.79 })
   expect(rowFor('2-88 Jumbo Shells')).toMatchObject({ size_qty: null, cmp_basis: 'ea', cmp_price: 3.99 })
+})
+
+test('multipacks are counted from the name', () => {
+  for (const [name, count] of [
+    ['Roasted Seaweed 6 ct', 6], ['Juice Drink 8pk - 1.4L', 8], ['Lager Beer 4-Pack - 500mL Cans', 4],
+    ['Classic Lager - 12 Bottles', 12], ['Juice Drink - 8 Boxes', 8], ['Pudding Cups - 6x113g', 6],
+    ['6 Banana & 6 Strawberry Smoothies', 12], ['Green Tea 15 ct', 15],
+  ] as const) expect(packCount(name), name).toBe(count)
+  for (const name of ['Shredded Cheese 1 pk', '6 Mini Wafer Cakes - 180g', '24 Clear Spoons', 'Milk - 1.89L', 'Bread']) {
+    expect(packCount(name), name).toBeNull()
+  }
+})
+
+test('a multipack compares per item, not by one item\'s weight', () => {
+  const pack = (name: string, weight: number, unit: string) => dealRow(mapNetcostSpecial({ ...packaged, name, sale: 5.99, weight, unit })!, 1)
+  expect(pack('Roasted Seaweed 6 ct', 0.17, 'Oz')).toMatchObject({ size_qty: 6, size_unit: 'ct', cmp_basis: 'ct', cmp_price: 1 })
+  expect(pack('6 Banana & 6 Strawberry Smoothies', 3.1, 'fl oz')).toMatchObject({ size_qty: 12, cmp_basis: 'ct', cmp_price: 0.5 })
+})
+
+test('a count in a name without a pack word still uses the package weight', () => {
+  expect(netcostSize({ name: '6 Mini Wafer Cakes - 180g', weight: 6.35, unit: 'Oz' })).toEqual({ qty: 6.35, unit: 'oz' })
+})
+
+test('milliliters and packs convert too', () => {
+  expect(netcostSize({ name: 'x', weight: 500, unit: 'ml' })).toEqual({ qty: 0.5, unit: 'l' })
+  expect(netcostSize({ name: 'x', weight: 10, unit: 'pack' })).toEqual({ qty: 10, unit: 'ct' })
 })
