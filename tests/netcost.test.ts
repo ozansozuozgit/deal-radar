@@ -137,6 +137,11 @@ test('milliliters and packs convert too', () => {
 })
 
 test("the store's ounces stay weight, even when the name matches a liquid product", () => {
-  const row = dealRow(mapNetcostSpecial({ ...packaged, name: 'Traditional Water Crackers', sale: 3.49, weight: 4, unit: 'Oz' })!, 1)
-  expect(row).toMatchObject({ canonical: 'water', size_unit: 'oz', cmp_basis: 'lb', cmp_price: 13.96 })
+  const row = dealRow(mapNetcostSpecial({ ...packaged, name: 'Fresh Milk Caramels', sale: 3.49, weight: 4, unit: 'Oz' })!, 1)
+  expect(row).toMatchObject({ canonical: 'milk', size_unit: 'oz', cmp_basis: 'lb', cmp_price: 13.96 })
+})
+
+test('grams in the name beat a fluid-ounce listing on a solid', () => {
+  expect(netcostSize({ name: 'Assorted Chocolates - 300g', weight: 10.58, unit: 'fl oz' })).toEqual({ qty: 10.582, unit: 'oz' })
+  expect(netcostSize({ name: 'Fruit Bars - 443ml', weight: 15, unit: 'fl oz' })).toEqual({ qty: 15, unit: 'floz' })
 })

@@ -15,7 +15,7 @@ import { addToActiveList } from '@/lib/client/list'
 import { createCode, initialCode } from '@/lib/client/sync'
 import { currentPushStatus, enablePush, linkPush, type PushStatus } from '@/lib/client/push'
 import { pricePerLb } from '@/lib/compare'
-import type { Prefs } from '@/lib/client/prefs'
+import { loadStoreFilter, saveStoreFilter, type Prefs } from '@/lib/client/prefs'
 import { Icon, type IconName } from './Icon'
 import { FilterPanel } from './FilterPanel'
 import { hoursSince, timeAgo } from '@/lib/dates'
@@ -126,8 +126,9 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   const [retry, setRetry] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
-  // a quick narrowing within your stores, for this visit only
-  const [storeFilter, setStoreFilter] = useState<string[] | null>(null)
+  // a quick narrowing within your stores, remembered on this device
+  const [savedStoreFilter, setStoreFilter] = useState<string[] | null>(loadStoreFilter)
+  useEffect(() => saveStoreFilter(savedStoreFilter), [savedStoreFilter])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [catSel, setCatSel] = useState<string[] | null>(null)
   const [sort, setSort] = useState('best')
@@ -202,6 +203,12 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
     return picked.length ? picked : inRadius
   }, [inRadius, prefs.enabledStores])
   const mySlugs = useMemo(() => mine.map(s => s.slug), [mine])
+  // saved picks can point at stores that are out of radius here or gone; ignore those, but
+  // keep them saved for when you switch back to a place that has them
+  const storeFilter = useMemo(() => {
+    const picked = savedStoreFilter?.filter(s => mySlugs.includes(s))
+    return picked?.length ? picked : null
+  }, [savedStoreFilter, mySlugs])
   function toggleMyStore(slug: string) {
     // start from what the checkboxes show, keeping picks for stores out of radius here
     const base = [...(prefs.enabledStores ?? []).filter(s => !inRadiusSlugs.includes(s)), ...mySlugs]
@@ -214,9 +221,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   const baseKey = useMemo(() => {
     const params = new URLSearchParams()
     if (q.trim()) params.set('q', q.trim())
-    // saved picks can point at stores that are now out of radius or gone; ignore those
-    const picked = storeFilter?.filter(s => mySlugs.includes(s))
-    const stores = picked?.length ? picked : mySlugs
+    const stores = storeFilter ?? mySlugs
     if (stores.length) params.set('stores', stores.join(','))
     if (catSel?.length === 1) params.set('category', catSel[0])
     params.set('status', upcoming ? 'upcoming' : 'active')

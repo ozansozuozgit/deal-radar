@@ -6,6 +6,8 @@
 // before general ones ("chicken breast" before "chicken", "ice cream" before "cream").
 
 const RULES: Array<[string, RegExp]> = [
+  // a candy, whatever flavor its name lists
+  ['candy', /\bbird milk\b/],
   // pet food mentions meats, and must not match them
   ['pet food', /(?<!hot )\bdogs?\b|\b(?:cats?|puppy|kitten|pets?)\b/],
   ['frozen pizza', /\bpizza\b/],
@@ -52,7 +54,10 @@ const RULES: Array<[string, RegExp]> = [
   ['coffee creamer', /\bcreamer\b/],
   ['oat milk', /\boat milk\b|\boatmilk\b/],
   ['almond milk', /\balmond milk\b|\balmondmilk\b/],
-  ['milk', /\bmilk\b(?! chocolate)/],
+  ['coconut milk', /\bcoconut milk\b/],
+  ['condensed milk', /\bcondensed (?:filled )?milk\b/],
+  ['evaporated milk', /\bevaporated milk\b/],
+  ['milk', /^(?!.*\b(?:yogh?urt|mozzarella|ricotta|cheese|formula)\b)(?:.*?)(?<!\b(?:powdered|bird|muscle|bubble) )\bmilk\b(?! chocolate| powder| filling| tea)/],
   ['greek yogurt', /\bgreek\b.*\byogh?urt\b|\bskyr\b/],
   ['yogurt', /\byogh?urts?\b/],
   ['peanut butter', /\bpeanut butter\b/],
@@ -126,7 +131,8 @@ const RULES: Array<[string, RegExp]> = [
   ['orange juice', /\borange juice\b|\boj\b/],
   ['juice', /\bjuices?\b/],
   ['sparkling water', /\bsparkling water\b|\bseltzer\b|\bla ?croix\b|\bbubly\b/],
-  ['water', /\bspring water\b|\bbottled water\b|\bwater\b/],
+  ['coconut water', /\bcoconut water\b/],
+  ['water', /\bspring water\b|\bbottled water\b|(?<!\bin )\bwater\b(?! crackers?|-resistant| resistant)/],
   ['soda', /\bsoda\b|\bcola\b|\bcoke\b|\bpepsi\b|\bsprite\b|\bginger ale\b|\bdr pepper\b/],
   // snacks & frozen
   ['chips', /\bchips\b|\btortilla chips\b|\bdoritos\b|\bpringles\b|\bcheetos\b/],

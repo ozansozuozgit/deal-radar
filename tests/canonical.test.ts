@@ -72,3 +72,31 @@ test('a specific product does not match its generic neighbour', () => {
   const pasta = [{ id: 1, name: 'Barilla Penne', normalized_name: 'barilla penne', canonical: 'pasta' }]
   expect(matchesForItem('pasta sauce', pasta as never)).toEqual([])
 })
+
+test.each([
+  ['Organic Whole Milk', 'milk'],
+  ['Lactaid 64-oz. milk.', 'milk'],
+  ['Lucerne Chocolate Milk', 'milk'],
+  ['2% Fat Milk - 1.89L', 'milk'],
+  ['Thai Kitchen Coconut Milk', 'coconut milk'],
+  ['Sweetened Condensed Milk', 'condensed milk'],
+  ["Chef's Quality Sweetened Condensed Filled Milk", 'condensed milk'],
+  ['Carnation Evaporated Milk', 'evaporated milk'],
+  ['Whole Milk French Style Yogurt', 'yogurt'],
+  ['Spring Water', 'water'],
+  ['Purified Water 24 pk', 'water'],
+  ['Vita Coco Coconut Water', 'coconut water'],
+  ['Traditional Water Crackers', 'crackers'],
+  ['"Bird Milk" Vanilla with Cherry Jelly in Dark Chocolate - 340g', 'candy'],
+])('products that mention milk or water: %s -> %s', (name, want) => {
+  expect(canonicalize(name)).toBe(want)
+})
+
+test.each([
+  'Whole Milk Mozzarella', 'Galbani Whole Milk Ricotta Cheese', 'Klim Milk Powder', 'Powdered Whole Milk Infant Formula',
+  'Muscle Milk Protein Shake', 'Red Bubble Milk Tea Drinks', '"Bird Milk" Vanilla in Dark Chocolate - 340g',
+  '5 Biscuit Cakes with Milk Filling - 150g', 'Milk Chocolate Candy',
+  'Artichoke Hearts in Water', 'Party Speaker, IPX4 Water-Resistant',
+])('not milk or water: %s', name => {
+  expect(['milk', 'water']).not.toContain(canonicalize(name))
+})
