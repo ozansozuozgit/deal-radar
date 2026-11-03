@@ -40,8 +40,21 @@ const DEPARTMENTS: Record<string, string> = {
 const GRAMS_PER_OZ = 28.3495
 const round3 = (n: number) => Math.round(n * 1000) / 1000
 
-/** The store's own size when it has one; many names only say "- 147g", which parseSize doesn't read. */
+/** How many items a multipack holds, from names like "6 ct", "8pk", "4-Pack", "12 Bottles", "6x113g", "6 Banana & 6 Strawberry". */
+export function packCount(name: string): number | null {
+  const mixed = /^(\d+)\s.*&\s*(\d+)\s/.exec(name)
+  if (mixed) return Number(mixed[1]) + Number(mixed[2])
+  const m = /(\d+)[\s-]*(?:ct|pk|packs?|count|bottles|cans|boxes)\b/i.exec(name) ?? /\b(\d+)\s*x\s*\d/i.exec(name)
+  return m && Number(m[1]) > 1 ? Number(m[1]) : null
+}
+
+/**
+ * The store's own size when it has one; many names only say "- 147g", which parseSize doesn't read.
+ * A multipack's weight is often for one item while the price is for the pack, so packs compare per item.
+ */
 export function netcostSize(s: Pick<NetcostSpecial, 'name' | 'weight' | 'unit'>): Size | null {
+  const pack = packCount(s.name)
+  if (pack) return { qty: pack, unit: 'ct' }
   const qty = Number(s.weight)
   if (s.weight != null && qty > 0) {
     switch (s.unit?.toLowerCase()) {
@@ -50,9 +63,10 @@ export function netcostSize(s: Pick<NetcostSpecial, 'name' | 'weight' | 'unit'>)
       case 'gram': return { qty: round3(qty / GRAMS_PER_OZ), unit: 'oz' }
       case 'lb': return { qty, unit: 'lb' }
       case 'liter': return { qty, unit: 'l' }
+      case 'ml': return { qty: round3(qty / 1000), unit: 'l' }
       case 'gallon': return { qty: qty * 128, unit: 'floz' }
       case 'quart': return { qty: qty * 32, unit: 'floz' }
-      case 'ct': case 'pk': return { qty, unit: 'ct' }
+      case 'ct': case 'pk': case 'pack': return { qty, unit: 'ct' }
     }
   }
   const grams = /(\d+(?:\.\d+)?)\s*(kg|g)\b/i.exec(s.name)
