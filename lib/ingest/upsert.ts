@@ -29,7 +29,7 @@ export function dealRow(d: DealInput, flyerId: number) {
   const canonical = canonicalize(d.name)
   const size = d.unit === 'lb'
     ? { qty: 1, unit: 'lb' as const }
-    : asLiquid(parseSize(`${d.name} ${d.description ?? ''}`), canonical)
+    : asLiquid(d.size ?? parseSize(`${d.name} ${d.description ?? ''}`), canonical)
   return {
     size_qty: size?.qty ?? null,
     size_unit: size?.unit ?? null,

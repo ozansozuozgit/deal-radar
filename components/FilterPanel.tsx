@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Img } from './Img'
 import { Icon } from './Icon'
+import { whereLabel } from '@/lib/stores/delivery'
 
 interface Store { slug: string; name: string; distance_miles: number | null; logo_url: string | null }
 
@@ -64,7 +65,7 @@ export function FilterPanel({ sorts, sort, onSort, upcoming, onUpcoming, stores,
                         disabled={on && mySlugs.length === 1} className="w-5 h-5 accent-ink" />
                       <Img src={s.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-line" />
                       <span className="flex-1 min-w-0 truncate">{s.name}</span>
-                      {s.distance_miles != null && <span className="text-xs text-neutral-500 tabular-nums">{s.distance_miles} mi</span>}
+                      {whereLabel(s.slug, s.distance_miles) && <span className="text-xs text-neutral-500 tabular-nums">{whereLabel(s.slug, s.distance_miles).replace(' · ', '')}</span>}
                     </label>
                   </li>
                 )

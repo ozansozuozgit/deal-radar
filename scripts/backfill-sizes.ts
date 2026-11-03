@@ -8,7 +8,7 @@ import { comparablePrice } from '@/lib/ingest/upsert'
 import { asLiquid, parseSize, unitPrice } from '@/lib/parse/size'
 
 interface Row {
-  id: number; name: string; description: string | null; unit: string | null; price: number | null; canonical: string | null
+  id: number; source: string; name: string; description: string | null; unit: string | null; price: number | null; canonical: string | null
   size_qty: number | null; size_unit: string | null; unit_price: number | null; cmp_price: number | null; cmp_basis: string | null
 }
 
@@ -16,10 +16,11 @@ async function main() {
   const write = process.argv.includes('--write')
   const db = getServiceClient()
   const rows = await fetchAll<Row>((from, to) => db.from('deals')
-    .select('id, name, description, unit, price, canonical, size_qty, size_unit, unit_price, cmp_price, cmp_basis')
+    .select('id, source, name, description, unit, price, canonical, size_qty, size_unit, unit_price, cmp_price, cmp_basis')
     .order('id').range(from, to), { max: 500_000 })
   const changes: Array<{ id: number; patch: Partial<Row> }> = []
   for (const r of rows) {
+    if (r.source === 'netcost') continue // sized by the store's own data, not the name
     // same rule as dealRow: per-lb deals are unit-priced already
     const size = r.unit === 'lb' ? { qty: 1, unit: 'lb' as const } : asLiquid(parseSize(`${r.name} ${r.description ?? ''}`), r.canonical)
     const next = {

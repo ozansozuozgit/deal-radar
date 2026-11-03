@@ -17,3 +17,8 @@ test.each([
 ])('categorize(%s) -> %s', (name, expected) => {
   expect(categorize(name)).toBe(expected)
 })
+
+test('chocolate is not cola', () => {
+  expect(categorize('Chocolate Covered Biscuits')).toBe('snacks')
+  expect(categorize('Coca Cola 12 pack')).toBe('beverages')
+})
