@@ -6,6 +6,7 @@ import { Img, NoImage } from './Img'
 import { Icon } from './Icon'
 import { Price } from './Price'
 import { whereLabel } from '@/lib/stores/delivery'
+import { amazonProductUrl } from '@/lib/sources/amazon-parse'
 import { daysLeft as daysUntil, shortDate } from '@/lib/dates'
 import { cycleText, verdictLine, type PriceStats } from '@/lib/priceCheck'
 import { CHART, layoutChart, usualPackagePrice, wasCheaperNote, type ChartPoint } from '@/lib/priceChart'
@@ -26,6 +27,10 @@ function itemLink(deal: DealRecord): { href: string; label: string } | null {
       return { href: 'https://www.fairwaymarket.com/sm/planning/rsid/4000/circulars', label: 'View Fairway circular' }
     case 'netcost':
       return { href: 'https://www.shop.netcostmarket.com/specials', label: 'View NetCost specials' }
+    case 'amazon': {
+      const href = amazonProductUrl((deal as unknown as { external_id?: string }).external_id)
+      return href ? { href, label: 'View on Amazon' } : null
+    }
     default:
       return null
   }

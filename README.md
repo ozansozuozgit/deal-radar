@@ -15,7 +15,8 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
 
 - 🛒 **One feed for every store** — ~30 grocery chains via Flipp, plus dedicated adapters for
   Whole Foods (with Prime pricing) and Fairway (whose flip-book circular becomes clean cards
-  with the printed flyer price as the image)
+  with the printed flyer price as the image), plus Amazon's own grocery store as a delivery
+  store (sale, coupon and Prime prices for your ZIP)
 - 🔍 **Search + smart sorting** — biggest discount, lowest price, or ending soon; emoji
   category filters; store chips with logos and real walking distances (OpenStreetMap)
 - ⚖️ **Unit prices** — $/oz, $/lb computed from package sizes so deals are actually comparable
@@ -68,6 +69,7 @@ flowchart LR
     F[Flipp API<br/>~30 chains] --> N[normalize<br/>+ unit prices]
     W[Whole Foods<br/>Playwright scrape] --> N
     R[Fairway<br/>RedPepper API] --> N
+    A[Amazon Grocery<br/>Playwright search scan] --> N
     G[Gemini<br/>flyer price extraction] -.optional.-> N
     N --> DB[(Supabase<br/>Postgres)]
     DB --> H[canonical products<br/>+ price stats & verdicts<br/>+ history flags<br/>+ push alerts & digest<br/>+ dinner ideas]
