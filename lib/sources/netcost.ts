@@ -229,34 +229,76 @@ export function netcostBookmarklet(importUrl: string, key: string): string {
     report = out.imported + ' deals sent to Deal Radar' + (out.skipped ? ' (' + out.skipped + ' skipped)' : '') + '. Branch ' + branch + '.';
   } catch (e) { return alert('NetCost import failed: ' + e.message); }
 
-  // the whole catalog: regular prices for best price
+  // the whole catalog: regular prices for best price. NetCost runs on Stor.ai, which lists
+  // products per aisle (/categories/{id}/products); a branch-wide list is tried first.
   try {
     const listOf = page => page && (Array.isArray(page.products) ? page.products : Array.isArray(page.items) ? page.items : null);
     const pageUrl = (url, from, size) => { const u = new URL(url, location.origin); u.searchParams.set('from', from); u.searchParams.set('size', size); return u.pathname + u.search; };
-    const listing = loaded.filter(u => /\\/branches\\/\\d+\\/([\\w-]+\\/)*(products|items)\\b/.test(u)).map(u => {
-      const x = new URL(u); for (const k of ['filters', 'categoryId', 'query', 'q']) x.searchParams.delete(k); return x.href;
-    });
-    const tries = [base + '/products?appId=4', base + '/items?appId=4', ...listing];
-    let url = null, total = 0, first;
-    for (const t of tries) {
-      const res = await fetch(pageUrl(t, 0, 100), { credentials: 'include' }).catch(() => null);
-      const page = res && res.ok ? await res.json().catch(() => null) : null;
-      const list = listOf(page);
-      if (list && list.length) { url = t; first = list; total = Number(page.total) || 0; break; }
+    const getJson = url => fetch(url, { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const readAll = async url => {
+      const first = await getJson(pageUrl(url, 0, 100)), list = listOf(first);
+      if (!list) return null;
+      const out = [...list];
+      if (list.length < 100) return out;
+      const max = Math.min(Number(first.total) || 40000, 40000);
+      for (let from = 100; from < max; from += 400) {
+        const pages = await Promise.all([0, 100, 200, 300].map(d => from + d < max ? getJson(pageUrl(url, from + d, 100)).then(listOf) : []));
+        if (pages.some(p => p == null)) throw new Error('NetCost stopped answering after ' + out.length + ' products');
+        pages.forEach(p => out.push(...p));
+        if (pages.some(p => p.length < 100)) break;
+      }
+      return out;
+    };
+    // the top-level aisles in a category tree: the shallowest list of things with an id and a name
+    const aislesIn = json => {
+      let level = [json];
+      for (let depth = 0; depth < 8 && level.length; depth++) {
+        const found = [], next = [];
+        for (const v of level) {
+          if (Array.isArray(v)) {
+            const cats = v.filter(o => o && typeof o === 'object' && Number.isFinite(Number(o.id)) && (o.names || o.name || o.localName));
+            if (cats.length) found.push(...cats.map(o => Number(o.id))); else next.push(...v);
+          } else if (v && typeof v === 'object') next.push(...Object.values(v));
+        }
+        if (found.length) return found;
+        level = next;
+      }
+      return [];
+    };
+    const stock = encodeURIComponent(JSON.stringify({ must: { exists: ['branch.regularPrice'], term: { 'branch.isActive': true, 'branch.isVisible': true } }, mustNot: { term: { 'branch.regularPrice': 0 } } }));
+    let items = null;
+    for (const t of [base + '/products?appId=4&languageId=2&filters=' + stock, base + '/products?appId=4']) {
+      document.title = 'Looking for the NetCost catalog';
+      const got = await readAll(t).catch(() => null);
+      if (got && got.length) { items = got; break; }
     }
-    if (!url) throw new Error('could not find the product list. Open any aisle, then press the bookmark again');
-    const items = [...first];
-    const max = Math.min(total || 40000, 40000);
-    for (let from = 100; from < max; from += 400) {
-      document.title = 'Reading NetCost ' + Math.min(from, max) + ' / ' + (total || '?');
-      const pages = await Promise.all([0, 100, 200, 300].map(d => from + d < max
-        ? fetch(pageUrl(url, from + d, 100), { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).then(listOf).catch(() => null)
-        : []));
-      if (pages.some(p => p == null)) throw new Error('NetCost stopped answering after ' + items.length + ' products');
-      pages.forEach(p => items.push(...p));
-      if (pages.some(p => p.length < 100)) break;
+    if (!items) {
+      const trees = [...loaded.filter(u => /\\/v2\\/.*(categor|tree)/i.test(u) && !/\\/products\\b/.test(u)),
+        base + '/categories?appId=4&languageId=2', '/v2/retailers/' + retailer + '/categories?appId=4&languageId=2',
+        '/v2/retailers/' + retailer + '/tree?appId=4&languageId=2', base + '/tree?appId=4&languageId=2'];
+      let ids = [];
+      for (const t of trees) { ids = aislesIn(await getJson(t)); if (ids.length) break; }
+      // aisles the page itself opened count too
+      loaded.forEach(u => { const m = /\\/categories\\/(\\d+)\\/products/.exec(u); if (m) ids.push(Number(m[1])); });
+      ids = [...new Set(ids)];
+      if (ids.length) {
+        items = [];
+        for (let i = 0; i < ids.length; i += 4) {
+          document.title = 'Reading NetCost aisle ' + (i + 1) + ' / ' + ids.length + ' (' + items.length + ' products)';
+          const got = await Promise.all(ids.slice(i, i + 4).map(id => readAll(base + '/categories/' + id + '/products?appId=4&languageId=2').catch(() => null)));
+          got.forEach(g => g && items.push(...g));
+        }
+        if (!items.length) items = null;
+      }
     }
-    const catalog = items.map(p => ({ ...fields(p, en(p.names)), id: p.productId || p.id })).filter(p => p.id && p.name);
+    if (!items) {
+      // what the page talked to, so the bookmark can be fixed from it
+      const api = [...new Set(loaded.filter(u => u.includes('/v2/')).map(u => new URL(u).pathname))].slice(0, 20).join('\\n');
+      try { await navigator.clipboard.writeText(api); } catch (e) {}
+      throw new Error('could not find the product list. Open any aisle and press the bookmark again. If it still fails, paste to Claude what was just copied:\\n' + api);
+    }
+    const byId = new Map(items.map(p => { const f = fields(p, en(p.names)); return [p.productId || p.id, { ...f, name: f.name || p.localName, id: p.productId || p.id }]; }));
+    const catalog = [...byId.values()].filter(p => p.id && p.name);
     let saved = 0, skipped = 0;
     for (let i = 0; i < catalog.length; i += ${CATALOG_BATCH}) {
       document.title = 'Sending to Deal Radar ' + i + ' / ' + catalog.length;
