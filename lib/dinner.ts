@@ -1,4 +1,5 @@
 // "Dinner from deals": env-gated Gemini generation, runs at the end of ingest.
+import { excludeSkipped } from '@/config/stores'
 import { getServiceClient } from '@/lib/db'
 
 export interface DinnerIdea {
@@ -40,8 +41,8 @@ export async function generateDinnerIdeas(): Promise<void> {
   if (!key) { console.log('[dinner] no GEMINI_API_KEY — skipping'); return }
   const db = getServiceClient()
   const now = new Date().toISOString()
-  const { data: deals } = await db.from('deals')
-    .select('name, price, merchant_slug, category')
+  const { data: deals } = await excludeSkipped(db.from('deals')
+    .select('name, price, merchant_slug, category'))
     .not('price', 'is', null)
     .lte('valid_from', now).gte('valid_to', now)
     .in('category', ['produce', 'meat', 'seafood', 'dairy', 'pantry'])

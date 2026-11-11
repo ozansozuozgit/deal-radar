@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { excludeSkipped } from '@/config/stores'
 import { getServiceClient } from '@/lib/db'
 import { parseDealsParams, searchFilter } from '@/lib/api/dealsQuery'
 import { canonicalize } from '@/lib/parse/canonical'
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   const db = getServiceClient()
   const now = new Date().toISOString()
   const filtered = () => {
-    let q = db.from('deals').select(DEAL_SELECT)
+    let q = excludeSkipped(db.from('deals').select(DEAL_SELECT))
     if (p.ids) q = q.in('id', p.ids)
     else if (p.status === 'active') q = q.lte('valid_from', now).gte('valid_to', now)
     // a retired deal (skipped store) has its end moved to the past, so check the end too

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { excludeSkipped } from '@/config/stores'
 import { fetchAll, getServiceClient } from '@/lib/db'
 import { sanitizeSearch, searchFilter } from '@/lib/api/dealsQuery'
 import { DEAL_SELECT, toDealRecords } from '@/lib/api/dealRecords'
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   let rows: Array<Record<string, unknown>>
   try {
     rows = await fetchAll<Record<string, unknown>>((from, to) => {
-      let query = db.from('deals').select(DEAL_SELECT)
+      let query = excludeSkipped(db.from('deals').select(DEAL_SELECT))
         .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
         // broad first pass on the longest word; the matcher below decides what really is the item
         .or(searchFilter(term, canonicalize(q)))

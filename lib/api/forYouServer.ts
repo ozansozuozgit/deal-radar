@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { excludeSkipped } from '@/config/stores'
 import { fetchAll } from '@/lib/db'
 import { pickForYou, type ForYouDeal, type Signal } from '@/lib/foryou'
 
@@ -47,7 +48,7 @@ type Row = Omit<ForYouDeal, 'merchant_name'> & { flyers?: { merchant_name?: stri
 export async function activeDeals(db: SupabaseClient, stores: string[]): Promise<ForYouDeal[]> {
   const now = new Date().toISOString()
   const rows = await fetchAll<Row>((from, to) => {
-    let q = db.from('deals').select(LIGHT).not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
+    let q = excludeSkipped(db.from('deals').select(LIGHT)).not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
     if (stores.length) q = q.in('merchant_slug', stores)
     return q.order('id').range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
   })

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { excludeSkipped } from '@/config/stores'
 import { fetchAll, getServiceClient } from '@/lib/db'
 import { matchesForItem, type CompareDeal } from '@/lib/compare'
 import { canonicalize } from '@/lib/parse/canonical'
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
   let rows: Row[]
   try {
     rows = await fetchAll<Row>((from, to) => {
-      let q = db.from('deals').select(COLUMNS)
+      let q = excludeSkipped(db.from('deals').select(COLUMNS))
         .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
       if (stores.length) q = q.in('merchant_slug', stores)
       return q.order('id').range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
