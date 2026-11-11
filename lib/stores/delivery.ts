@@ -1,5 +1,5 @@
 // Stores that bring groceries to you, so distance doesn't apply (and radius never hides them).
-const DELIVERY = new Set(['netcost'])
+const DELIVERY = new Set(['netcost', 'amazon-grocery'])
 
 export function isDeliveryStore(slug: string): boolean { return DELIVERY.has(slug) }
 

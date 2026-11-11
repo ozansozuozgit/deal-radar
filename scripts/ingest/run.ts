@@ -4,12 +4,13 @@ import { chunk, dealRow, dedupeBy, flyerRow } from '@/lib/ingest/upsert'
 import { flippSource } from '@/lib/sources/flipp'
 import { fairwaySource } from '@/lib/sources/fairway'
 import { wholeFoodsSource } from '@/lib/sources/wholefoods'
+import { amazonSource } from '@/lib/sources/amazon'
 import { DEFAULT_LOCATION } from '@/config/location'
 import { syncStores } from '@/lib/stores/overpass'
 import { placesToScan } from '@/lib/places'
 import type { DealSource, FlyerInput, LocationConfig } from '@/lib/types'
 
-const sources: DealSource[] = [flippSource, fairwaySource, wholeFoodsSource]
+const sources: DealSource[] = [flippSource, fairwaySource, wholeFoodsSource, amazonSource]
 
 // Saved places from the app, beyond the env location. Flipp flyers are per postal code,
 // so each place with a zip gets its own flyer lookup; stores are found around all of them.
