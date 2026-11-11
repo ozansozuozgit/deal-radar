@@ -5,8 +5,9 @@ import { skippedStores } from '@/config/stores'
 
 export const dynamic = 'force-dynamic'
 
-// data changes once a day; let the CDN absorb repeat reads
-const CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' }
+// Deals change once a day, but this also carries the scan status under the feed.
+// A long stale window let the CDN show a failed scan for hours after a good one.
+const CACHE = { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=60' }
 
 export async function GET(req: NextRequest) {
   // distances from where the viewer is, when given; otherwise from the ingest location
