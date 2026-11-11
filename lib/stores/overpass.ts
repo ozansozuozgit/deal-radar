@@ -1,6 +1,7 @@
 import { haversineMiles } from '@/lib/geo'
 import { slugify } from '@/lib/parse/normalize'
 import { getServiceClient } from '@/lib/db'
+import { isDeliveryStore } from '@/lib/stores/delivery'
 import type { LocationConfig } from '@/lib/types'
 
 export type OsmElement = {
@@ -60,8 +61,7 @@ export async function syncStores(loc: LocationConfig, logos?: Map<string, string
   const db = getServiceClient()
   const { data: merchants } = await db.from('flyers').select('merchant_slug, merchant_name, source')
   if (!merchants?.length) return
-  // delivery stores have no nearby branch to find; a distance would hide them by radius
-  const unique = new Map(merchants.filter(m => m.source !== 'netcost').map(m => [m.merchant_slug, m]))
+  const unique = new Map(merchants.map(m => [m.merchant_slug, m]))
 
   // Upsert names/logos first so they survive even when Overpass is down.
   if (logos?.size && !branchesOnly) {
@@ -95,8 +95,9 @@ export async function syncStores(loc: LocationConfig, logos?: Map<string, string
     lastErr = `Overpass HTTP ${res.status} at ${endpoint}`
   }
   if (!elements) throw new Error(lastErr || 'Overpass unavailable')
+  // delivery stores have no nearby branch to find; a distance would hide them by radius
   const rows = matchBranches(
-    [...unique.values()].map(m => ({ slug: m.merchant_slug, name: m.merchant_name })),
+    [...unique.values()].filter(m => !isDeliveryStore(m.merchant_slug)).map(m => ({ slug: m.merchant_slug, name: m.merchant_name })),
     elements, loc,
   ).map(r => ({ ...r, source: unique.get(r.slug)!.source })) // logo_url handled above
   const branches = rows.filter(r => r.lat != null && r.lng != null).map(r => ({

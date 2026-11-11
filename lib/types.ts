@@ -1,4 +1,4 @@
-export type SourceId = 'flipp' | 'wholefoods' | 'fairway' | 'netcost'
+export type SourceId = 'flipp' | 'wholefoods' | 'fairway' | 'netcost' | 'amazon'
 
 export interface LocationConfig {
   address: string
