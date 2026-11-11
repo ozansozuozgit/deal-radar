@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const have = new Set([...hit].map(d => d.id))
   const missing = pinnedIds.filter(id => !have.has(id))
   if (missing.length) {
-    const { data } = await db.from('deals').select(COLUMNS).in('id', missing).gte('valid_to', now)
+    const { data } = await excludeSkipped(db.from('deals').select(COLUMNS)).in('id', missing).gte('valid_to', now)
     for (const r of (data ?? []) as unknown as Row[]) hit.add(flatten(r))
   }
   // typical prices and sale cycles, so items without a deal can say when one usually comes
