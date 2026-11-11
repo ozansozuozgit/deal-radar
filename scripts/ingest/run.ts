@@ -6,6 +6,7 @@ import { fairwaySource } from '@/lib/sources/fairway'
 import { wholeFoodsSource } from '@/lib/sources/wholefoods'
 import { amazonSource } from '@/lib/sources/amazon'
 import { DEFAULT_LOCATION } from '@/config/location'
+import { skippedStores } from '@/config/stores'
 import { syncStores } from '@/lib/stores/overpass'
 import { placesToScan } from '@/lib/places'
 import type { DealSource, FlyerInput, LocationConfig } from '@/lib/types'
@@ -59,7 +60,8 @@ async function runSource(src: DealSource, logos: Map<string, string>, closeSlugs
   let flyerCount = 0, dealCount = 0, failedFlyers = 0, error: string | null = null
   let flyers: Awaited<ReturnType<DealSource['fetchFlyers']>> = []
   try {
-    flyers = await flyersEverywhere(src, extras)
+    const skip = skippedStores()
+    flyers = (await flyersEverywhere(src, extras)).filter(f => !skip.has(f.merchantSlug))
     for (const f of flyers) if (f.logoUrl) logos.set(f.merchantSlug, f.logoUrl)
   } catch (e) {
     error = e instanceof Error ? e.message : String(e)
@@ -117,6 +119,21 @@ async function ingestFlyer(src: DealSource, flyer: FlyerInput, closeSlugs: Set<s
   return rows.length
 }
 
+/**
+ * Deals already saved from a skipped store would linger until their flyer ends; end them now
+ * so the store leaves the store list and every feed. Rows are kept (price history stays).
+ */
+async function retireSkippedStores() {
+  const skip = [...skippedStores()]
+  if (!skip.length) return
+  const now = new Date().toISOString()
+  const { count, error } = await getServiceClient().from('deals')
+    .update({ valid_to: now }, { count: 'exact' })
+    .in('merchant_slug', skip).gt('valid_to', now)
+  if (error) throw new Error(error.message)
+  console.log(`[skip] retired ${count ?? 0} deal(s) from ${skip.join(', ')}`)
+}
+
 async function main() {
   const logos = new Map<string, string>()
   const extras = await extraLocations().catch(() => [])
@@ -124,6 +141,7 @@ async function main() {
   if (extras.length) console.log(`[places] also scanning ${extras.length} saved place(s)`)
   const closeSlugs = await closeStoreSlugs(extras).catch(() => new Set<string>())
   const results = await Promise.all(sources.map(s => runSource(s, logos, closeSlugs, extras)))
+  try { await retireSkippedStores() } catch (e) { console.error('retiring skipped stores failed:', e) }
   try { await syncStores(DEFAULT_LOCATION, logos) } catch (e) { console.error('store sync failed:', e) }
   for (const loc of extras) {
     try { await syncStores(loc, undefined, { branchesOnly: true }) } catch (e) { console.error(`store sync near saved place ${loc.postalCode || '(no zip)'} failed:`, e) }

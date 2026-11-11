@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/db'
 import { nearestBranches } from '@/lib/places'
+import { skippedStores } from '@/config/stores'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
   const lng = Number(req.nextUrl.searchParams.get('lng'))
   const from = req.nextUrl.searchParams.has('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
   const db = getServiceClient()
+  const skip = skippedStores()
   const now = new Date().toISOString()
   const [{ data: stores }, { data: branches }, { data: runs }, { data: lastOk }] = await Promise.all([
     db.from('stores').select('slug, name, distance_miles, logo_url, lat, lng, branch_address'),
@@ -50,7 +52,8 @@ export async function GET(req: NextRequest) {
         deal_count: counts.get(s.slug) ?? 0,
       }
     })
-      .filter(s => s.deal_count > 0)
+      // skipped stores leave the list as soon as this deploys, before a scan retires their deals
+      .filter(s => s.deal_count > 0 && !skip.has(s.slug))
       .sort((a, b) => (a.distance_miles ?? 99) - (b.distance_miles ?? 99)),
     freshness: [...latestBySource.values()],
     lastSuccess: lastOk?.[0]?.finished_at ?? null,
