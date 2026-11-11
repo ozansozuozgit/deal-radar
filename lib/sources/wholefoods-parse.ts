@@ -52,12 +52,12 @@ export function parseWholeFoodsText(bodyText: string): WfRawDeal[] {
   return deals
 }
 
-/** One deal per name + Prime price + end date, across the sales page and its "View All" pages. */
+/** One deal per brand + name + Prime price + end date, across the sales page and its "View All" pages. */
 export function mergeWfRaw(...lists: WfRawDeal[][]): WfRawDeal[] {
   const seen = new Set<string>()
   const out: WfRawDeal[] = []
   for (const list of lists) for (const d of list) {
-    const key = `${d.name.toLowerCase()}|${d.primeText}|${d.expiry ?? ''}`
+    const key = `${(d.brand ?? '').toLowerCase()}|${d.name.toLowerCase()}|${d.primeText}|${d.expiry ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(d)
