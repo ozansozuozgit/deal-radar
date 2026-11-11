@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     let q = db.from('deals').select(DEAL_SELECT)
     if (p.ids) q = q.in('id', p.ids)
     else if (p.status === 'active') q = q.lte('valid_from', now).gte('valid_to', now)
-    else q = q.gt('valid_from', now)
+    // a retired deal (skipped store) has its end moved to the past, so check the end too
+    else q = q.gt('valid_from', now).gt('valid_to', now)
     if (p.stores) q = q.in('merchant_slug', p.stores)
     if (p.category) q = q.eq('category', p.category)
     if (p.q) q = q.or(searchFilter(p.q, canonicalize(p.q)))
