@@ -8,6 +8,7 @@ import { SavingsView } from './SavingsView'
 import { MealsView } from './MealsView'
 import { WatchChips } from './WatchChips'
 import { ForYouRow, type ForYouItem } from './ForYouRow'
+import { BestPriceCard } from './BestPriceCard'
 import { PlacesMenu, type SavedPlace } from './PlacesMenu'
 import { hiddenMatchers, isHidden } from '@/lib/foryou'
 import { addWatch, loadWatches, removeWatch, syncWatches, updateWatch, watchOwner, type PriceBasis, type Watch } from '@/lib/client/watches'
@@ -504,6 +505,11 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                   </div>
                 )}
               </div>
+            )}
+
+            {qTerm.length >= 3 && !upcoming && online && (
+              <BestPriceCard query={q.trim()} hidden={hidden} onOpen={setSelected}
+                stores={storeFilter ? mine.filter(s => storeFilter.includes(s.slug)) : mine} />
             )}
 
             {(!loading || loadingMore) && !failed && (
