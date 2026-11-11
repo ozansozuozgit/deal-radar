@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { excludeSkipped } from '@/config/stores'
 import { fetchAll, getServiceClient } from '@/lib/db'
 import { matchesForItem, type CompareDeal } from '@/lib/compare'
 import { canonicalize } from '@/lib/parse/canonical'
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
   let rows: Row[]
   try {
     rows = await fetchAll<Row>((from, to) => {
-      let q = db.from('deals').select(COLUMNS)
+      let q = excludeSkipped(db.from('deals').select(COLUMNS))
         .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
       if (stores.length) q = q.in('merchant_slug', stores)
       return q.order('id').range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
   const have = new Set([...hit].map(d => d.id))
   const missing = pinnedIds.filter(id => !have.has(id))
   if (missing.length) {
-    const { data } = await db.from('deals').select(COLUMNS).in('id', missing).gte('valid_to', now)
+    const { data } = await excludeSkipped(db.from('deals').select(COLUMNS)).in('id', missing).gte('valid_to', now)
     for (const r of (data ?? []) as unknown as Row[]) hit.add(flatten(r))
   }
   // typical prices and sale cycles, so items without a deal can say when one usually comes

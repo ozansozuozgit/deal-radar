@@ -1,4 +1,5 @@
 import { fetchAll, getServiceClient } from '@/lib/db'
+import { excludeSkipped } from '@/config/stores'
 import { matchesForItem, pricePerLb, type CompareDeal } from '@/lib/compare'
 
 export interface WatchRow { device_id: string; term: string; max_price: number | null; price_basis?: string | null }
@@ -86,8 +87,8 @@ export async function sendWatchAlerts(): Promise<void> {
   if (!activeWatches.length) { console.log('[notify] no watches with subscriptions'); return }
 
   const now = new Date().toISOString()
-  const deals = await fetchAll<Record<string, unknown>>((from, to) => db.from('deals')
-    .select('id, name, normalized_name, canonical, merchant_slug, price, unit, size_qty, size_unit, source, external_id')
+  const deals = await fetchAll<Record<string, unknown>>((from, to) => excludeSkipped(db.from('deals')
+    .select('id, name, normalized_name, canonical, merchant_slug, price, unit, size_qty, size_unit, source, external_id'))
     .not('price', 'is', null).lte('valid_from', now).gte('valid_to', now)
     .order('id').range(from, to))
   // merchant display names

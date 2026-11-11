@@ -7,3 +7,15 @@ export function skippedStores(env: string | undefined = process.env.SKIP_STORES)
   const list = env == null ? DEFAULT_SKIP : env.split(',')
   return new Set(list.map(s => s.trim().toLowerCase()).filter(Boolean))
 }
+
+/**
+ * Leave skipped stores out of a deals query. The store list already hides them, but a
+ * stale copy of that list (offline cache, older tab) or a scan that hasn't run since a
+ * store was skipped would otherwise still surface their deals.
+ */
+export function excludeSkipped<Q>(query: Q): Q {
+  const skip = [...skippedStores()]
+  if (!skip.length) return query
+  const list = `(${skip.map(s => `"${s.replace(/"/g, '')}"`).join(',')})`
+  return (query as unknown as { not(column: string, op: string, value: string): Q }).not('merchant_slug', 'in', list)
+}
