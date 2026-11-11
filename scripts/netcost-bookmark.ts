@@ -19,8 +19,8 @@ writeFileSync(file, `<!doctype html><meta charset="utf-8"><title>NetCost bookmar
 <li>Drag this button to your bookmarks bar:<br><br>
 <a href="${href}" style="display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#111;color:#fff;font-weight:700;text-decoration:none">Send to Deal Radar</a><br><br></li>
 <li>Open <a href="${NETCOST.specialsUrl}">NetCost's specials page</a>.</li>
-<li>Press the bookmark. It tells you how many deals it sent.</li>
+<li>Press the bookmark. It sends the specials, then reads every product's regular price, which can take a minute or two (the tab title shows how far it got). It tells you how many of each it sent.</li>
 </ol>
-<p>Then close this page.</p>
+<p>If you already had the bookmark, delete the old one: this one also sends the full catalog. Then close this page.</p>
 </body>`, { mode: 0o600 })
 console.log(file)

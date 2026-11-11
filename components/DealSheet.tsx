@@ -26,7 +26,8 @@ function itemLink(deal: DealRecord): { href: string; label: string } | null {
     case 'fairway':
       return { href: 'https://www.fairwaymarket.com/sm/planning/rsid/4000/circulars', label: 'View Fairway circular' }
     case 'netcost':
-      return { href: 'https://www.shop.netcostmarket.com/specials', label: 'View NetCost specials' }
+      // a regular catalog price isn't on the specials page
+      return flyerId === 'catalog' ? null : { href: 'https://www.shop.netcostmarket.com/specials', label: 'View NetCost specials' }
     case 'amazon': {
       const href = amazonProductUrl((deal as unknown as { external_id?: string }).external_id)
       return href ? { href, label: 'View on Amazon' } : null

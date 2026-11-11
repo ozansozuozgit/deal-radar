@@ -11,6 +11,7 @@ export interface BestDeal extends MatchTarget {
   unit?: string | null
   size_qty?: number | null; size_unit?: string | null
   cmp_price?: number | null; cmp_basis?: string | null
+  regular?: boolean          // an everyday catalog price rather than a sale
 }
 
 export interface StoreBest<T extends BestDeal = BestDeal> {
