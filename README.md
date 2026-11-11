@@ -20,6 +20,8 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
 - 🔍 **Search + smart sorting** — biggest discount, lowest price, or ending soon; emoji
   category filters; store chips with logos and real walking distances (OpenStreetMap)
 - ⚖️ **Unit prices** — $/oz, $/lb computed from package sizes so deals are actually comparable
+- 🥇 **Best price across stores** — search "chicken breast" and a card ranks your stores by
+  the cheapest price per lb (or per item, per gallon), with how much more each other store costs
 - 🏷️ **Historical-low badges** — price history accumulates weekly; genuine lows get flagged,
   recurring fake "sales" don't
 - 🔢 **Multi-buy done right** — "4/$1" means $0.25 each, not $1 (Flipp's feed drops the
