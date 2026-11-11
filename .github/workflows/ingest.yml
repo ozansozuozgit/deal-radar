@@ -1,7 +1,7 @@
 name: ingest
 on:
   schedule:
-    - cron: '0 10 * * *'   # 06:00 America/New_York during EDT
+    - cron: '0 10 * * *'   # 06:00 New York in summer, 05:00 in winter; GitHub often starts it hours late
   workflow_dispatch:
 
 # "Refresh now" can be pressed repeatedly; never run two scans at once
@@ -11,10 +11,9 @@ concurrency:
 
 jobs:
   ingest:
-    # This repo's own daily scan runs from a private repo (private logs, no 60-day
-    # schedule shutoff) that checks out this main; here the schedule only runs in forks.
-    # "Refresh now" (workflow_dispatch) still runs here.
-    if: github.event_name != 'schedule' || github.repository != 'ozansozuozgit/deal-radar'
+    # The daily scan runs here: Actions minutes are free on this public repo, while the old
+    # private-repo copy stopped starting (billing). Location values are secrets, which GitHub
+    # masks in the logs, and the scan never prints the address.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
