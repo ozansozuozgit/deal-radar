@@ -21,7 +21,7 @@ import { loadStoreFilter, saveStoreFilter, type Prefs } from '@/lib/client/prefs
 import { isDeliveryStore, myStores, nextDeliveryOff } from '@/lib/stores/delivery'
 import { Icon, type IconName } from './Icon'
 import { FilterPanel } from './FilterPanel'
-import { hoursSince, timeAgo } from '@/lib/dates'
+import { hoursSince, staleAge, timeAgo } from '@/lib/dates'
 import { useOnline } from '@/lib/client/online'
 import type { DinnerIdea } from '@/lib/dinner'
 
@@ -32,6 +32,7 @@ interface Meta {
   }>
   freshness: Array<{ source: string; finished_at: string; deal_count: number; error: string | null }>
   lastSuccess: string | null
+  netcostSent: string | null
 }
 
 const CATEGORIES: Array<[string, string]> = [
@@ -160,8 +161,9 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
         stores: Array.isArray(d?.stores) ? d.stores : [],
         freshness: Array.isArray(d?.freshness) ? d.freshness : [],
         lastSuccess: typeof d?.lastSuccess === 'string' ? d.lastSuccess : null,
+        netcostSent: typeof d?.netcostSent === 'string' ? d.netcostSent : null,
       }))
-      .catch(() => setMeta({ stores: [], freshness: [], lastSuccess: null }))
+      .catch(() => setMeta({ stores: [], freshness: [], lastSuccess: null, netcostSent: null }))
   }, [prefs.lat, prefs.lng])
   const home = useMemo(() => ({ lat: prefs.lat, lng: prefs.lng }), [prefs.lat, prefs.lng])
   const distanceBySlug = useMemo(() => new Map((meta?.stores ?? []).map(s => [s.slug, s.distance_miles])), [meta])
@@ -582,6 +584,12 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                       {f.source}: {f.error ? `last attempt failed ${timeAgo(f.finished_at)}, showing older data` : `updated ${timeAgo(f.finished_at)}, ${f.deal_count} deals`}
                     </div>
                   ))}
+                  {(meta.netcostSent || mySlugs.includes('netcost')) && (
+                    <div className={staleAge(meta.netcostSent) ? 'text-amber-400' : undefined}>
+                      NetCost: {meta.netcostSent ? `bookmark last sent ${timeAgo(meta.netcostSent)}` : 'not sent yet'}
+                      {(!meta.netcostSent || staleAge(meta.netcostSent)) && <>, <Link href="/bookmarks" className="underline">press the bookmark</Link> on NetCost&apos;s site to update</>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                 <Link href="/bookmarks" className="text-neutral-400 hover:text-neutral-100 hover:underline">Store bookmarks</Link>

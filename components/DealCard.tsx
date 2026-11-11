@@ -20,6 +20,7 @@ export interface DealRecord {
   canonical?: string | null; normalized_name?: string
   cmp_price?: number | null; cmp_basis?: string | null
   typical_price?: number | null; price_verdict?: string | null
+  last_seen?: string | null
 }
 
 export { isHistoricalLow, isSteadyPrice } from '@/lib/history'
