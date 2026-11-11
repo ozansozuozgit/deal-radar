@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { daysLeft, hoursSince, shortDate, timeAgo } from '@/lib/dates'
+import { daysLeft, hoursSince, shortDate, staleAge, timeAgo } from '@/lib/dates'
 
 const now = Date.parse('2026-10-28T12:00:00Z')
 
@@ -39,4 +39,10 @@ test('shortDate reads flyer days in UTC and adds the year only when it differs',
   expect(shortDate('2025-12-30T05:00:00+00:00', now)).toBe('Dec 30, 2025')
   expect(shortDate(null, now)).toBeNull()
   expect(shortDate('nope', now)).toBeNull()
+})
+
+test('staleAge stays quiet for prices seen in the last two days', () => {
+  expect(staleAge('2026-10-27T13:00:00Z', now)).toBeNull()
+  expect(staleAge(null, now)).toBeNull()
+  expect(staleAge('2026-10-25T12:00:00Z', now)).toBe('3d ago')
 })

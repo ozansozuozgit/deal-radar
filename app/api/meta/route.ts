@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
     db.from('ingest_runs').select('finished_at').is('error', null).not('finished_at', 'is', null)
       .order('finished_at', { ascending: false }).limit(1),
   ])
+  // NetCost has no scan: its prices are only as new as the last press of its bookmark
+  const netcostSent = await lastBookmarkPress(db)
   // per-store head counts: a plain select of all active deals silently truncates
   // at PostgREST's 1000-row cap and undercounts
   const counts = new Map<string, number>()
@@ -58,5 +60,16 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => (a.distance_miles ?? 99) - (b.distance_miles ?? 99)),
     freshness: [...latestBySource.values()],
     lastSuccess: lastOk?.[0]?.finished_at ?? null,
+    netcostSent,
   }, { headers: CACHE })
+}
+
+/** When the NetCost bookmark last sent anything: its specials or its catalog, whichever is newer. */
+async function lastBookmarkPress(db: ReturnType<typeof getServiceClient>): Promise<string | null> {
+  const newest = (table: 'deals' | 'catalog_prices') => db.from(table).select('last_seen')
+    .eq('source', 'netcost').not('last_seen', 'is', null)
+    .order('last_seen', { ascending: false }).limit(1)
+    .then(({ data }) => (data?.[0]?.last_seen as string | undefined) ?? null, () => null)
+  const seen = (await Promise.all([newest('deals'), newest('catalog_prices')])).filter((t): t is string => !!t)
+  return seen.sort().at(-1) ?? null
 }

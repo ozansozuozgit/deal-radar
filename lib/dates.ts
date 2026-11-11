@@ -37,3 +37,12 @@ export function hoursSince(iso: string | null | undefined, now: number = Date.no
   const t = +new Date(iso)
   return Number.isFinite(t) ? (now - t) / 3_600_000 : null
 }
+
+/** A daily scan re-sees its prices within a day, so anything older than this gets its age shown. */
+export const STALE_AFTER_HOURS = 48
+
+/** "5d ago" for a price last seen over two days ago, null while it's fresh (or undated). */
+export function staleAge(lastSeen: string | null | undefined, now: number = Date.now()): string | null {
+  const h = hoursSince(lastSeen, now)
+  return h != null && h > STALE_AFTER_HOURS ? timeAgo(lastSeen, now) : null
+}

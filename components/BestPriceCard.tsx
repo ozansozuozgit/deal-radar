@@ -1,13 +1,17 @@
 'use client'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { DealRecord } from './DealCard'
 import { Img } from './Img'
 import { basisLabel, type BestPrice } from '@/lib/bestPrice'
 import { whereLabel } from '@/lib/stores/delivery'
+import { staleAge } from '@/lib/dates'
 
 type Result = BestPrice<DealRecord & { id: number; regular?: boolean }>
 
 const SHOWN = 4
+/** Stores whose prices only change when Ozan presses their "Send to Deal Radar" bookmark. */
+const BOOKMARK_STORES = new Set(['netcost', 'amazon-grocery'])
 
 /**
  * "Where's chicken breast cheapest?": the best price per lb (or per item) at each of your
@@ -48,6 +52,8 @@ export function BestPriceCard({ query, stores, hidden, onOpen }: {
   const per = data.basis === 'lb' ? 'per lb' : data.basis === 'gal' ? 'per gallon' : data.basis === 'ct' ? 'per item' : 'per package'
   const missing = stores.filter(s => !data.stores.some(r => r.slug === s.slug) && !data.otherBasis.some(d => d.merchant_slug === s.slug))
   const rows = open ? data.stores : data.stores.slice(0, SHOWN)
+  // a bookmark store's old prices get a nudge to press that bookmark again
+  const oldBookmarked = data.stores.filter(r => BOOKMARK_STORES.has(r.slug) && staleAge(r.deal.last_seen))
 
   return (
     <section className="mt-4 rounded-xl border border-line bg-card px-4 py-3" aria-label={`Best price for ${query}`}>
@@ -69,7 +75,7 @@ export function BestPriceCard({ query, stores, hidden, onOpen }: {
                     {i === 0 && <span className="shrink-0 rounded-[5px] bg-badge text-on-badge px-1.5 py-0.5 text-[11px] leading-tight">Cheapest</span>}
                   </span>
                   <span className="block text-xs text-neutral-500 truncate">
-                    {r.deal.regular ? 'Regular price · ' : ''}{r.deal.name}{whereLabel(r.slug, store?.distance_miles ?? r.deal.distance_miles ?? null)}
+                    {priceNote(r.deal.regular, staleAge(r.deal.last_seen))}{r.deal.name}{whereLabel(r.slug, store?.distance_miles ?? r.deal.distance_miles ?? null)}
                     {r.others > 0 ? ` · +${r.others} more` : ''}
                   </span>
                 </span>
@@ -84,6 +90,12 @@ export function BestPriceCard({ query, stores, hidden, onOpen }: {
           )
         })}
       </ol>
+      {oldBookmarked.length > 0 && (
+        <p className="mt-1 text-xs text-amber-400">
+          {oldBookmarked.map(r => `${r.name} was last sent ${staleAge(r.deal.last_seen)}`).join(', ')}, so {oldBookmarked.length > 1 ? 'those prices' : 'that price'} may have changed.{' '}
+          <Link href="/bookmarks" className="underline hover:text-amber-300">{oldBookmarked.length > 1 ? 'Press their bookmarks' : 'Press its bookmark'}</Link> to update.
+        </p>
+      )}
       <div className="mt-1 flex items-center justify-between gap-3 text-xs text-neutral-500">
         <span className="min-w-0 truncate">
           {missing.length > 0 && <>Not on sale at {missing.map(s => s.name).join(', ')}</>}
@@ -96,4 +108,10 @@ export function BestPriceCard({ query, stores, hidden, onOpen }: {
       </div>
     </section>
   )
+}
+
+/** "Regular price · ", "Seen 5d ago · ", "Regular price, seen 5d ago · " or nothing. */
+export function priceNote(regular: boolean | undefined, age: string | null): string {
+  if (regular) return age ? `Regular price, seen ${age} · ` : 'Regular price · '
+  return age ? `Seen ${age} · ` : ''
 }
