@@ -10,7 +10,7 @@ const PAGES_PER_AISLE = 2
 
 /**
  * Point Amazon at a ZIP the way its "Deliver to" box does, so prices and stock are the ones
- * that deliver there. Returns false when the box says another place afterwards.
+ * that deliver there. Returns false unless the "Deliver to" box then shows that ZIP.
  */
 async function setZip(page: Page, zip: string): Promise<boolean> {
   await page.goto('https://www.amazon.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 })
@@ -31,8 +31,9 @@ async function setZip(page: Page, zip: string): Promise<boolean> {
   }, zip)
   if (!ok) return false
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 45_000 })
+  // a box we can't read proves nothing, and prices for the wrong place are worse than none
   const shown = await page.locator('#glow-ingress-line2').first().textContent({ timeout: 5_000 }).catch(() => null)
-  return shown == null || shown.includes(zip) // no box to read means a new layout, not a wrong ZIP
+  return shown != null && shown.includes(zip)
 }
 
 async function readCards(page: Page): Promise<AmazonCard[]> {

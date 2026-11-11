@@ -50,6 +50,11 @@ test('a product found in two aisles counts once', () => {
   expect(amazonDeals([{ aisle: 'dairy', cards: [sale] }, { aisle: 'breakfast', cards: [sale, card({})] }], now)).toHaveLength(1)
 })
 
+test("a deal never outlives its week, so next week's row doesn't show beside it", () => {
+  expect(amazonCardToDeal(card({ was: '$4.29' }), { now: new Date('2026-11-15T10:00:00Z') })?.validTo)
+    .toBe('2026-11-16T00:00:00.000Z')
+})
+
 test('weeks start on Monday', () => {
   expect(weekStart(new Date('2026-11-09T00:30:00Z'))).toBe('2026-11-09T00:00:00.000Z')
   expect(weekStart(new Date('2026-11-15T23:00:00Z'))).toBe('2026-11-09T00:00:00.000Z')

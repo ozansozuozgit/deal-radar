@@ -62,8 +62,15 @@ export function weekStart(now: Date): string {
 }
 
 // Amazon shows no end date, so a deal lasts until a day and a half after the scan that saw it:
-// tomorrow's scan extends it, and one missed scan doesn't empty the store.
+// tomorrow's scan extends it, and one missed scan doesn't empty the store. It never outlives its
+// week, because next week's sighting is a new row and the two would show side by side.
 const SEEN_FOR_MS = 36 * 3600_000
+const WEEK_MS = 7 * 24 * 3600_000
+
+export function seenUntil(now: Date): string {
+  const weekEnd = new Date(weekStart(now)).getTime() + WEEK_MS
+  return new Date(Math.min(now.getTime() + SEEN_FOR_MS, weekEnd)).toISOString()
+}
 
 function saleStory(text: string): string | null {
   const t = text.replace(/\s+/g, ' ')
@@ -110,7 +117,7 @@ export function amazonCardToDeal(card: AmazonCard, { aisle, now }: { aisle?: str
     category: fromName === 'other' && aisle ? aisle : fromName,
     imageUrl: card.image,
     validFrom: weekStart(now),
-    validTo: new Date(now.getTime() + SEEN_FOR_MS).toISOString(),
+    validTo: seenUntil(now),
   }
 }
 
