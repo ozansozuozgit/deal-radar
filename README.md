@@ -16,7 +16,8 @@ Built as a personal tool, running entirely on free tiers: **$0/month**.
 - 🛒 **One feed for every store** — ~30 grocery chains via Flipp, plus dedicated adapters for
   Whole Foods (with Prime pricing) and Fairway (whose flip-book circular becomes clean cards
   with the printed flyer price as the image), plus Amazon's own grocery store as a delivery
-  store (sale, coupon and Prime prices for your ZIP)
+  store (sale, coupon and Prime prices for your ZIP; Amazon turns the scan away on some days, so
+  an "Amazon" bookmark imports the same deals from your own browser)
 - 🔍 **Search + smart sorting** — biggest discount, lowest price, or ending soon; emoji
   category filters; store chips with logos and real walking distances (OpenStreetMap)
 - ⚖️ **Unit prices** — $/oz, $/lb computed from package sizes so deals are actually comparable
