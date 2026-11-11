@@ -50,3 +50,18 @@ test('wfToDeals converts to DealInput', () => {
   expect(halibut.price).toBeNull()
   expect(halibut.saleStory).toBe('11% off (20% off with Prime)')
 })
+
+test('merges the sales page with its View All pages without repeating a deal', async () => {
+  const { mergeWfRaw } = await import('@/lib/sources/wholefoods-parse')
+  const preview = parseWholeFoodsText(text)
+  const fullList = [...preview.slice(2), { ...preview[0], name: 'Organic Strawberries, 16 oz' }]
+  const merged = mergeWfRaw(preview, fullList)
+  expect(merged).toHaveLength(preview.length + 1)
+  expect(merged.filter(d => d.name === 'Red Cherries')).toHaveLength(1)
+})
+
+test('keeps two brands with the same product name and promotion', async () => {
+  const { mergeWfRaw } = await import('@/lib/sources/wholefoods-parse')
+  const milk = { name: 'Organic Whole Milk, 64 fl oz', brand: 'Horizon', primeText: '20% off', nonPrimeText: '11% off', regularText: null, expiry: '11/18' }
+  expect(mergeWfRaw([milk, { ...milk, brand: 'Straus' }], [milk])).toHaveLength(2)
+})

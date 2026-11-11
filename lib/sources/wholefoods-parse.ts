@@ -52,6 +52,19 @@ export function parseWholeFoodsText(bodyText: string): WfRawDeal[] {
   return deals
 }
 
+/** One deal per brand + name + Prime price + end date, across the sales page and its "View All" pages. */
+export function mergeWfRaw(...lists: WfRawDeal[][]): WfRawDeal[] {
+  const seen = new Set<string>()
+  const out: WfRawDeal[] = []
+  for (const list of lists) for (const d of list) {
+    const key = `${(d.brand ?? '').toLowerCase()}|${d.name.toLowerCase()}|${d.primeText}|${d.expiry ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(d)
+  }
+  return out
+}
+
 function splitPriceLine(line: string): { nonPrimeText: string | null; regularText: string | null } {
   // "$6.66 ea $7.99" | "11% off $34.99/lb" | "4 for $5.56 $1.09" | "$9.49"
   const pctMatch = /^(\d+% off)\s+(.*)$/.exec(line)

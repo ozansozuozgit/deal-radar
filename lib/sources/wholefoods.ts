@@ -1,5 +1,6 @@
 import { DEFAULT_LOCATION } from '@/config/location'
-import { enrichWfDeals, flattenWfProducts, parseWholeFoodsText, wfToDeals } from './wholefoods-parse'
+import { enrichWfDeals, flattenWfProducts, mergeWfRaw, parseWholeFoodsText, wfToDeals } from './wholefoods-parse'
+import type { Page } from 'playwright'
 import type { DealSource, FlyerInput } from '@/lib/types'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
@@ -28,26 +29,75 @@ export const wholeFoodsSource: DealSource = {
           try { productBatches.push(await res.json()) } catch { /* non-JSON, ignore */ }
         }
       })
-      await page.goto(`https://www.wholefoodsmarket.com/sales-flyer?store-id=${storeId}`, {
-        waitUntil: 'domcontentloaded', timeout: 45_000,
-      })
-      await page.waitForTimeout(5_000) // let client hydration finish
-      // scroll through the page so lazy product batches (images) all load
-      for (let i = 0; i < 8; i++) {
-        await page.evaluate(() => window.scrollBy(0, window.innerHeight * 2))
-        await page.waitForTimeout(700)
+      const salesUrl = `https://www.wholefoodsmarket.com/sales-flyer?store-id=${storeId}`
+      const main = await readPage(page, salesUrl)
+      // The sales page shows a preview of each section; "View All" / "Shop All Deals"
+      // lead to the full lists. Read each one too, so the scan isn't just the preview.
+      // keep the store on every page, or the site falls back to its default store
+      const more = main.links.map(u => withStore(u, storeId)).filter(u => u !== salesUrl).slice(0, MAX_EXTRA_PAGES)
+      const raws = [parseWholeFoodsText(main.text)]
+      const images = [...main.images]
+      const counts = [`main=${raws[0].length}`]
+      for (const url of more) {
+        try {
+          const p = await readPage(page, url)
+          const parsed = parseWholeFoodsText(p.text)
+          raws.push(parsed)
+          images.push(...p.images)
+          counts.push(`${new URL(url).pathname}${new URL(url).search}=${parsed.length}`)
+        } catch (e) {
+          counts.push(`${url}=failed(${e instanceof Error ? e.message : e})`)
+        }
       }
-      const text = await page.evaluate(() => document.body.innerText)
-      // card images carry the product name as alt text — the richest image source
-      const domImages = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('img'))
-          .filter(i => i.alt && /media-amazon\.com\/images\/I\//.test(i.src))
-          .map(i => ({ name: i.alt, productImages: [i.src] })))
-      const deals = wfToDeals(parseWholeFoodsText(text), storeId, new Date().toISOString())
+      const merged = mergeWfRaw(...raws)
+      console.log(`[wholefoods] store ${storeId}: ${merged.length} unique deals; pages ${counts.join(', ')}; ` +
+        `View All controls without a link: ${main.unlinkedViewAll}`)
+      const deals = wfToDeals(merged, storeId, new Date().toISOString())
       if (deals.length === 0) throw new Error('Whole Foods parse produced 0 deals — page layout may have changed')
-      return enrichWfDeals(deals, [...domImages, ...flattenWfProducts(productBatches)])
+      return enrichWfDeals(deals, [...images, ...flattenWfProducts(productBatches)])
     } finally {
       await browser.close()
     }
   },
+}
+
+const MAX_EXTRA_PAGES = 15
+const MAX_SCROLLS = 40
+
+/** Load a page, scroll until it stops growing, and return its text, card images and "see more" links. */
+async function readPage(page: Page, url: string) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+  await page.waitForTimeout(5_000) // let client hydration finish
+  // lazy sections and product batches load as you scroll; stop once the page stops growing
+  let lastHeight = 0, still = 0
+  for (let i = 0; i < MAX_SCROLLS && still < 3; i++) {
+    await page.evaluate(() => window.scrollBy(0, window.innerHeight * 2))
+    await page.waitForTimeout(700)
+    const h = await page.evaluate(() => document.body.scrollHeight)
+    const atBottom = await page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 4)
+    still = h === lastHeight && atBottom ? still + 1 : 0
+    lastHeight = h
+  }
+  const text = await page.evaluate(() => document.body.innerText)
+  // card images carry the product name as alt text — the richest image source
+  const images = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('img'))
+      .filter(i => i.alt && /media-amazon\.com\/images\/I\//.test(i.src))
+      .map(i => ({ name: i.alt, productImages: [i.src] })))
+  const { links, unlinkedViewAll } = await page.evaluate(() => {
+    const isMore = (el: Element) => /^(view all|shop all deals|see all|show all)$/i.test((el.textContent ?? '').trim())
+    const anchors = Array.from(document.querySelectorAll('a')).filter(isMore)
+    const buttons = Array.from(document.querySelectorAll('button')).filter(isMore)
+    return {
+      links: anchors.map(a => a.href).filter(h => h.startsWith('https://www.wholefoodsmarket.com/')),
+      unlinkedViewAll: buttons.length,
+    }
+  })
+  return { text, images, links: [...new Set(links)], unlinkedViewAll }
+}
+
+function withStore(url: string, storeId: number): string {
+  const u = new URL(url)
+  if (!u.searchParams.has('store-id')) u.searchParams.set('store-id', String(storeId))
+  return u.toString()
 }
