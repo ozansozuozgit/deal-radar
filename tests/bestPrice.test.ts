@@ -35,6 +35,11 @@ test('matches sold another way are kept aside, and other products are left out',
   expect(JSON.stringify(r)).not.toContain('Thighs')
 })
 
+test('excluded deals (hidden products) never win a store', () => {
+  const r = bestPriceByStore('chicken breast', chicken, d => d.name.includes('Value Pack'))
+  expect(r.stores.find(s => s.slug === 'netcost')!.deal.name).toBe('Boneless Chicken Breast')
+})
+
 test('compares on what most stores sell by', () => {
   const eggs = [
     deal({ name: 'Large Eggs 12 ct', merchant_slug: 'a', price: 3.6, size_qty: 12, size_unit: 'ct' }),
@@ -64,5 +69,7 @@ test('labels and the database prefilter', () => {
   expect(prefilterTerm('Chicken Breasts')).toBe('chicken')
   expect(prefilterTerm('tomatoes')).toBe('tomato')
   expect(prefilterTerm('ground beef')).toBe('ground')
+  expect(prefilterTerm('organic beef')).toBe('beef')   // the matcher ignores 'organic'
+  expect(prefilterTerm('fresh organic')).toBeNull()
   expect(prefilterTerm('!!')).toBeNull()
 })

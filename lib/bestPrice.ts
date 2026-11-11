@@ -1,5 +1,5 @@
 // "Where is chicken breast cheapest this week?" Pure functions, unit-tested.
-import { itemMatcher, type MatchTarget } from '@/lib/compare'
+import { itemMatcher, tokens, type MatchTarget } from '@/lib/compare'
 import { comparablePrice } from '@/lib/ingest/upsert'
 
 export type Basis = 'lb' | 'gal' | 'ct' | 'ea'
@@ -47,10 +47,10 @@ export function unitPriceOf(d: BestDeal): { price: number; basis: Basis } | null
  * $6 three-pound bag beats a $2.49/lb tray only when it really is cheaper per pound.
  * Weight wins a tie, since that's the fairest comparison.
  */
-export function bestPriceByStore<T extends BestDeal>(item: string, deals: T[]): BestPrice<T> {
+export function bestPriceByStore<T extends BestDeal>(item: string, deals: T[], exclude: (d: T) => boolean = () => false): BestPrice<T> {
   const matches = itemMatcher(item)
   const priced = deals
-    .filter(d => matches(d))
+    .filter(d => matches(d) && !exclude(d))
     .map(d => ({ d, u: unitPriceOf(d) }))
     .filter((x): x is { d: T; u: { price: number; basis: Basis } } => x.u != null)
   if (!priced.length) return { basis: null, stores: [], otherBasis: [] }
@@ -89,10 +89,13 @@ export function basisLabel(basis: Basis | null): string {
   return basis === 'lb' ? '/lb' : basis === 'gal' ? '/gal' : basis === 'ct' ? ' each' : ''
 }
 
-/** The longest word of the search, for a broad first pass in the database. */
+/**
+ * The longest meaningful word of the search, for a broad first pass in the database.
+ * Words the matcher ignores ("organic", "fresh") are skipped, so the pass never drops a match.
+ */
 export function prefilterTerm(item: string): string | null {
   const words = item.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 1)
+    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => tokens(w).length > 0)
   if (!words.length) return null
   // match the singular, so "breasts" still finds "breast"
   return words.sort((a, b) => b.length - a.length)[0].replace(/(?<=\w{3})e?s$/, '')

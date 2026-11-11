@@ -508,7 +508,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
             )}
 
             {qTerm.length >= 3 && !upcoming && online && (
-              <BestPriceCard query={q.trim()} onOpen={setSelected}
+              <BestPriceCard query={q.trim()} hidden={hidden} onOpen={setSelected}
                 stores={storeFilter ? mine.filter(s => storeFilter.includes(s.slug)) : mine} />
             )}
 

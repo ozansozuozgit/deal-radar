@@ -13,13 +13,15 @@ const SHOWN = 4
  * "Where's chicken breast cheapest?": the best price per lb (or per item) at each of your
  * stores for what you searched, cheapest first. Shown above the search results.
  */
-export function BestPriceCard({ query, stores, onOpen }: {
+export function BestPriceCard({ query, stores, hidden, onOpen }: {
   query: string
+  hidden: string[]         // "not interested" terms, left out like in the feed
   stores: Array<{ slug: string; name: string; distance_miles: number | null; logo_url: string | null }>
   onOpen: (d: DealRecord) => void
 }) {
   const storesKey = stores.map(s => s.slug).join(',')
-  const key = `${query}|${storesKey}`
+  const hiddenKey = JSON.stringify(hidden)
+  const key = `${query}|${storesKey}|${hiddenKey}`
   const [res, setRes] = useState<{ key: string; data: Result | null } | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -27,6 +29,7 @@ export function BestPriceCard({ query, stores, onOpen }: {
     const ctrl = new AbortController()
     const params = new URLSearchParams({ q: query })
     if (storesKey) params.set('stores', storesKey)
+    for (const t of JSON.parse(hiddenKey) as string[]) params.append('hide', t)
     // a little later than the feed's own fetch, so typing doesn't fire both on every key
     const t = setTimeout(() =>
       fetch(`/api/best?${params}`, { signal: ctrl.signal })
@@ -34,7 +37,7 @@ export function BestPriceCard({ query, stores, onOpen }: {
         .then(d => setRes({ key, data: d?.stores ? d : null }))
         .catch(() => { if (!ctrl.signal.aborted) setRes({ key, data: null }) }), 400)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [query, storesKey, key])
+  }, [query, storesKey, hiddenKey, key])
 
   const data = res?.key === key ? res.data : null
   // one store (or none) has nothing to compare against

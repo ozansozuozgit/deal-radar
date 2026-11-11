@@ -3,6 +3,7 @@ import { fetchAll, getServiceClient } from '@/lib/db'
 import { sanitizeSearch, searchFilter } from '@/lib/api/dealsQuery'
 import { DEAL_SELECT, toDealRecords } from '@/lib/api/dealRecords'
 import { canonicalize } from '@/lib/parse/canonical'
+import { hiddenMatchers, isHidden } from '@/lib/foryou'
 import { bestPriceByStore, prefilterTerm, type BestDeal } from '@/lib/bestPrice'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,8 @@ const CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3
 export async function GET(req: NextRequest) {
   const q = sanitizeSearch(req.nextUrl.searchParams.get('q'))
   const stores = (req.nextUrl.searchParams.get('stores') ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 100)
+  // "not interested" products stay out of the comparison, as they do in the feed
+  const hidden = hiddenMatchers(req.nextUrl.searchParams.getAll('hide').map(t => t.trim()).filter(Boolean).slice(0, 200))
   const term = q ? prefilterTerm(q) : null
   if (!q || !term) return NextResponse.json({ basis: null, stores: [], otherBasis: [] })
 
@@ -35,5 +38,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'query failed' }, { status: 500 })
   }
   const deals = (await toDealRecords(db, rows)) as unknown as BestDeal[]
-  return NextResponse.json(bestPriceByStore(q, deals), { headers: CACHE })
+  return NextResponse.json(bestPriceByStore(q, deals, d => isHidden(d, hidden)), { headers: CACHE })
 }
