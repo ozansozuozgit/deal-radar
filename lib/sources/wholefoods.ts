@@ -63,6 +63,7 @@ export const wholeFoodsSource: DealSource = {
 
 const MAX_EXTRA_PAGES = 15
 const MAX_SCROLLS = 40
+const MORE_LINK = /^(view all|shop all deals|see all|show all)$/
 
 /** Load a page, scroll until it stops growing, and return its text, card images and "see more" links. */
 async function readPage(page: Page, url: string) {
@@ -84,15 +85,17 @@ async function readPage(page: Page, url: string) {
     Array.from(document.querySelectorAll('img'))
       .filter(i => i.alt && /media-amazon\.com\/images\/I\//.test(i.src))
       .map(i => ({ name: i.alt, productImages: [i.src] })))
-  const { links, unlinkedViewAll } = await page.evaluate(() => {
-    const isMore = (el: Element) => /^(view all|shop all deals|see all|show all)$/i.test((el.textContent ?? '').trim())
-    const anchors = Array.from(document.querySelectorAll('a')).filter(isMore)
-    const buttons = Array.from(document.querySelectorAll('button')).filter(isMore)
+  // No named functions or consts holding arrows inside page.evaluate: tsx wraps them
+  // in a __name() helper that doesn't exist in the browser and the call throws.
+  const { links, unlinkedViewAll } = await page.evaluate((pattern) => {
+    const re = new RegExp(pattern, 'i')
+    const anchors = Array.from(document.querySelectorAll('a')).filter(el => re.test((el.textContent ?? '').trim()))
+    const buttons = Array.from(document.querySelectorAll('button')).filter(el => re.test((el.textContent ?? '').trim()))
     return {
       links: anchors.map(a => a.href).filter(h => h.startsWith('https://www.wholefoodsmarket.com/')),
       unlinkedViewAll: buttons.length,
     }
-  })
+  }, MORE_LINK.source)
   return { text, images, links: [...new Set(links)], unlinkedViewAll }
 }
 
