@@ -323,7 +323,9 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   const doWatch = useCallback((term: string) => setWatches(addWatch(term, owner)), [owner])
   // adding from a deal pins that exact deal, so the list prices what you looked at
   const doAddToList = useCallback((deal: DealRecord) => {
-    addToActiveList(code, { text: deal.name, qty: 1, pinnedDealId: deal.id })
+    // a regular catalog price (negative id) isn't a deal the list can pin; the item is
+    // added by name and matched against this week's sales like a typed one
+    addToActiveList(code, { text: deal.name, qty: 1, pinnedDealId: deal.id > 0 ? deal.id : undefined })
   }, [code])
 
   const [refreshState, setRefreshState] = useState<'idle' | 'busy' | 'done' | 'running' | 'cooldown' | 'error'>('idle')

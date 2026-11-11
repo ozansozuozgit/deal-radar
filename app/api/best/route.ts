@@ -53,12 +53,19 @@ const CATALOG_FRESH_DAYS = 14
  */
 async function catalogPrices(db: ReturnType<typeof getServiceClient>, term: string, canonical: string | null, stores: string[]): Promise<BestDeal[]> {
   const since = new Date(Date.now() - CATALOG_FRESH_DAYS * 86_400_000).toISOString()
-  let query = excludeSkipped(db.from('catalog_prices').select('*'))
-    .gte('last_seen', since).or(searchFilter(term, canonical))
-  if (stores.length) query = query.in('merchant_slug', stores)
-  const { data, error } = await query.limit(2000)
-  if (error || !data?.length) return []
-  const rows = data as Array<Record<string, unknown>>
+  let rows: Array<Record<string, unknown>>
+  try {
+    // every match, a page at a time: one select stops at 1,000 rows, and the cheapest may be past it
+    rows = await fetchAll<Record<string, unknown>>((from, to) => {
+      let query = excludeSkipped(db.from('catalog_prices').select('*'))
+        .gte('last_seen', since).or(searchFilter(term, canonical))
+      if (stores.length) query = query.in('merchant_slug', stores)
+      return query.order('id').range(from, to) as unknown as PromiseLike<{ data: Array<Record<string, unknown>> | null; error: { message: string } | null }>
+    }, { max: 5000 })
+  } catch {
+    return []
+  }
+  if (!rows.length) return []
   return (await toDealRecords(db, rows)).map((r, i) => ({
     ...r,
     merchant_name: rows[i].merchant_name,   // the row's own; there's no flyer to take it from
