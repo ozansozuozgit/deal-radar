@@ -67,9 +67,12 @@ export function weekStart(now: Date): string {
 const SEEN_FOR_MS = 36 * 3600_000
 const WEEK_MS = 7 * 24 * 3600_000
 
-export function seenUntil(now: Date): string {
+/** A bookmark import is pressed by hand, not every morning, so its deals last a few days. */
+export const IMPORT_LASTS_MS = 3 * 24 * 3600_000
+
+export function seenUntil(now: Date, lastsMs = SEEN_FOR_MS): string {
   const weekEnd = new Date(weekStart(now)).getTime() + WEEK_MS
-  return new Date(Math.min(now.getTime() + SEEN_FOR_MS, weekEnd)).toISOString()
+  return new Date(Math.min(now.getTime() + lastsMs, weekEnd)).toISOString()
 }
 
 function saleStory(text: string): string | null {
@@ -93,7 +96,7 @@ function primePrice(text: string): number | null {
  * A card is a deal when Amazon strikes a higher List or Was price through, or puts a coupon,
  * "Limited time deal" or Prime price on it. A "Typical" price is only Amazon's estimate, not a sale.
  */
-export function amazonCardToDeal(card: AmazonCard, { aisle, now }: { aisle?: string; now: Date }): DealInput | null {
+export function amazonCardToDeal(card: AmazonCard, { aisle, now, lastsMs }: { aisle?: string; now: Date; lastsMs?: number }): DealInput | null {
   const name = card.title.replace(/\s+/g, ' ').trim()
   if (!/^[A-Z0-9]{10}$/.test(card.asin) || !name) return null
   const price = parsePrice(card.price)
@@ -117,16 +120,16 @@ export function amazonCardToDeal(card: AmazonCard, { aisle, now }: { aisle?: str
     category: fromName === 'other' && aisle ? aisle : fromName,
     imageUrl: card.image,
     validFrom: weekStart(now),
-    validTo: seenUntil(now),
+    validTo: seenUntil(now, lastsMs),
   }
 }
 
 /** Deals from every aisle's cards; a product found in two aisles counts once. */
-export function amazonDeals(pages: Array<{ aisle: string; cards: AmazonCard[] }>, now: Date): DealInput[] {
+export function amazonDeals(pages: Array<{ aisle: string; cards: AmazonCard[] }>, now: Date, lastsMs?: number): DealInput[] {
   const out = new Map<string, DealInput>()
   for (const { aisle, cards } of pages) {
     for (const c of cards) {
-      const d = amazonCardToDeal(c, { aisle, now })
+      const d = amazonCardToDeal(c, { aisle, now, lastsMs })
       if (d && !out.has(d.externalId)) out.set(d.externalId, d)
     }
   }

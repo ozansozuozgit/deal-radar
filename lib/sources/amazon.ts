@@ -65,7 +65,7 @@ export const amazonSource: DealSource = {
     const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] })
     try {
       const page = await browser.newPage({ userAgent: UA, locale: 'en-US' })
-      if (!(await setZip(page, zip))) throw new Error(`Amazon wouldn't deliver to ${zip}, so its prices would be for somewhere else`)
+      if (!(await setZip(page, zip))) throw new Error(`Amazon wouldn't deliver to ${zip}, so its prices would be for somewhere else; use the Amazon bookmark (scripts/amazon-bookmark.ts) instead`)
       const pages: Array<{ aisle: string; cards: AmazonCard[] }> = []
       let full = false
       for (const { query, category } of AMAZON_AISLES) {
