@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DealCard, type DealRecord } from './DealCard'
 import { SkeletonCards } from './Skeleton'
@@ -582,6 +583,8 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                     </div>
                   ))}
                 </div>
+                <div className="flex items-center gap-3">
+                <Link href="/bookmarks" className="text-neutral-400 hover:text-neutral-100 hover:underline">Store bookmarks</Link>
                 <button onClick={refreshNow} disabled={refreshState !== 'idle' && refreshState !== 'error'}
                   className="rounded-lg border border-neutral-700 px-3 py-1.5 text-neutral-400 hover:text-neutral-100 hover:border-neutral-600 disabled:opacity-60 transition-colors">
                   {refreshState === 'idle' && 'Refresh now'}
@@ -591,6 +594,7 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
                   {refreshState === 'cooldown' && 'Deals were just refreshed'}
                   {refreshState === 'error' && 'Could not start. Try again'}
                 </button>
+                </div>
               </div>
             )}
           </>
