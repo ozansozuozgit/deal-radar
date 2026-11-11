@@ -5,7 +5,7 @@ import { Img } from './Img'
 import { basisLabel, type BestPrice } from '@/lib/bestPrice'
 import { whereLabel } from '@/lib/stores/delivery'
 
-type Result = BestPrice<DealRecord & { id: number }>
+type Result = BestPrice<DealRecord & { id: number; regular?: boolean }>
 
 const SHOWN = 4
 
@@ -69,7 +69,7 @@ export function BestPriceCard({ query, stores, hidden, onOpen }: {
                     {i === 0 && <span className="shrink-0 rounded-[5px] bg-badge text-on-badge px-1.5 py-0.5 text-[11px] leading-tight">Cheapest</span>}
                   </span>
                   <span className="block text-xs text-neutral-500 truncate">
-                    {r.deal.name}{whereLabel(r.slug, store?.distance_miles ?? r.deal.distance_miles ?? null)}
+                    {r.deal.regular ? 'Regular price · ' : ''}{r.deal.name}{whereLabel(r.slug, store?.distance_miles ?? r.deal.distance_miles ?? null)}
                     {r.others > 0 ? ` · +${r.others} more` : ''}
                   </span>
                 </span>

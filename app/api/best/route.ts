@@ -39,5 +39,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'query failed' }, { status: 500 })
   }
   const deals = (await toDealRecords(db, rows)) as unknown as BestDeal[]
-  return NextResponse.json(bestPriceByStore(q, deals, d => isHidden(d, hidden)), { headers: CACHE })
+  const regular = await catalogPrices(db, term, canonicalize(q), stores)
+  return NextResponse.json(bestPriceByStore(q, [...deals, ...regular], d => isHidden(d, hidden)), { headers: CACHE })
+}
+
+/** Catalog prices this old are taken as gone: the bookmark refreshes them on every press. */
+const CATALOG_FRESH_DAYS = 14
+
+/**
+ * Everyday prices from stores that send their whole catalog, shaped like deals. A sale on the
+ * same item is cheaper, so it still wins that store's row. Before the catalog_prices table
+ * exists the query fails, and best price carries on with deals alone.
+ */
+async function catalogPrices(db: ReturnType<typeof getServiceClient>, term: string, canonical: string | null, stores: string[]): Promise<BestDeal[]> {
+  const since = new Date(Date.now() - CATALOG_FRESH_DAYS * 86_400_000).toISOString()
+  let query = excludeSkipped(db.from('catalog_prices').select('*'))
+    .gte('last_seen', since).or(searchFilter(term, canonical))
+  if (stores.length) query = query.in('merchant_slug', stores)
+  const { data, error } = await query.limit(2000)
+  if (error || !data?.length) return []
+  const rows = data as Array<Record<string, unknown>>
+  return (await toDealRecords(db, rows)).map((r, i) => ({
+    ...r,
+    merchant_name: rows[i].merchant_name,   // the row's own; there's no flyer to take it from
+    flyer_external_id: 'catalog',
+    id: -Number(r.id),            // never the same as a deal's id
+    description: 'Regular price, not on sale',
+    original_price: null, prime_price: null, price_text: null, sale_story: null, crop: null,
+    valid_from: null, valid_to: null, discount_pct: null,
+    regular: true,
+  })) as unknown as BestDeal[]
 }
