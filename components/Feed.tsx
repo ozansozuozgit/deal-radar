@@ -128,6 +128,10 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
   // never shown for newer filters and "loading" is simply "results don't match yet"
   const [results, setResults] = useState<Results | null>(null)
   const [retry, setRetry] = useState(0)
+  // bumped when the service worker showed a cached copy of the store list and scan
+  // status because the network was slow, and the fresh one has since arrived
+  const [metaRev, setMetaRev] = useState(0)
+  const refreshedOnce = useRef(new Set<string>())
   const searchRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   // a quick narrowing within your stores, remembered on this device
@@ -164,7 +168,19 @@ export function Feed({ prefs, onOpenSetup, onChangePrefs }: {
         netcostSent: typeof d?.netcostSent === 'string' ? d.netcostSent : null,
       }))
       .catch(() => setMeta({ stores: [], freshness: [], lastSuccess: null, netcostSent: null }))
-  }, [prefs.lat, prefs.lng])
+  }, [prefs.lat, prefs.lng, metaRev])
+  useEffect(() => {
+    // once per page load, so a network that stays slow can't keep re-triggering it
+    const onMessage = (e: MessageEvent) => {
+      const path = e.data?.type === 'fresh' ? e.data.path : null
+      if (typeof path !== 'string' || refreshedOnce.current.has(path)) return
+      refreshedOnce.current.add(path)
+      if (path === '/api/meta') setMetaRev(n => n + 1)
+      else if (path === '/api/deals') setRetry(n => n + 1)
+    }
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage)
+  }, [])
   const home = useMemo(() => ({ lat: prefs.lat, lng: prefs.lng }), [prefs.lat, prefs.lng])
   const distanceBySlug = useMemo(() => new Map((meta?.stores ?? []).map(s => [s.slug, s.distance_miles])), [meta])
 

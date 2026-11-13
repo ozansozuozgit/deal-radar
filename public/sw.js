@@ -47,8 +47,16 @@ async function networkFirst(req, fallbackKey) {
     return res
   })
   if (!cached) return network
-  const slow = new Promise(resolve => setTimeout(() => resolve(cached), SLOW_NETWORK_MS))
-  return Promise.race([network.then(res => (res.ok ? res : cached)), slow]).catch(() => cached)
+  let servedCached = false
+  const slow = new Promise(resolve => setTimeout(() => { servedCached = true; resolve(cached) }, SLOW_NETWORK_MS))
+  // a slow answer still lands in the cache; tell the page so it can swap the old copy
+  // out instead of showing yesterday's deals and scan status until the next visit
+  network.then(res => { if (res.ok && servedCached && !fallbackKey) notifyFresh(new URL(req.url).pathname) }, () => {})
+  return Promise.race([network.then(res => (res.ok ? res : cached)), slow]).catch(() => { servedCached = true; return cached })
+}
+
+function notifyFresh(path) {
+  self.clients.matchAll({ type: 'window' }).then(list => list.forEach(c => c.postMessage({ type: 'fresh', path })))
 }
 
 self.addEventListener('push', event => {
